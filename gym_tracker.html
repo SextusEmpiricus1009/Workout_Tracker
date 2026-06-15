@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FORM</title>
+<title>Sextus' Gym Workout Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -255,7 +255,7 @@
 
   /* AUTH */
   .auth-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px; }
-  .auth-title { font-family: 'Barlow Condensed', sans-serif; font-size: 48px; font-weight: 900; letter-spacing: 6px; text-transform: uppercase; color: var(--accent); }
+  .auth-title { font-family: 'Barlow Condensed', sans-serif; font-size: 34px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); text-align: center; line-height: 1.05; }
   .auth-sub { font-size: 13px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
   .btn-google { display: flex; align-items: center; gap: 10px; background: #fff; border: none; border-radius: 8px; color: #1a1a1a; font-family: 'Barlow', sans-serif; font-size: 15px; font-weight: 600; padding: 13px 28px; cursor: pointer; }
 </style>
@@ -263,7 +263,7 @@
 <body>
 
 <div class="auth-overlay" id="auth-overlay">
-  <div class="auth-title">FORM</div>
+  <div class="auth-title">Sextus' Gym Workout Tracker</div>
   <div class="auth-sub">Your personal gym tracker</div>
   <button class="btn-google" onclick="signIn()">
     <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.34-8.16 2.34-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -310,6 +310,9 @@
     <div class="screen-sub">Paste &amp; parse your plan</div>
   </div>
   <div class="section-label" style="margin-top:0">Paste your ChatGPT plan</div>
+  <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5">New to this? Copy the prompt, paste it into ChatGPT, then paste ChatGPT's reply below and parse.</div>
+  <button class="btn-secondary" onclick="copyMenuPrompt()" style="width:100%;margin-bottom:10px">Copy ChatGPT Prompt</button>
+  <div id="menu-prompt-status" class="parse-status" style="margin-bottom:6px;min-height:0"></div>
   <label for="program-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Paste your workout program</label>
   <textarea class="program-textarea" id="program-input" placeholder="DAY: Monday Gym | Strength | 60min&#10;&#10;Leg Press Machine | 3x10 | lower&#10;..." aria-label="Paste your workout program"></textarea>
   <button class="parse-btn" onclick="parseAndSaveProgram()">Parse Program</button>
@@ -327,6 +330,52 @@
   </div>
   <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
   <div id="backup-status" class="parse-status"></div>
+
+  <textarea id="menu-prompt-src" style="display:none" aria-hidden="true">You are writing a weekly training plan for me. Output ONLY plain text in the exact format below — no markdown, no headings, no bullet points, no commentary before or after. I paste your output directly into an app that parses it literally, so the rules are strict.
+
+STRUCTURE
+- One block per training day. A block starts with a "DAY:" line, then a blank line, then one exercise per line.
+- Put a blank line between day blocks. Use each weekday at most once.
+
+DAY LINE
+DAY: <Weekday> <Label> | <Type> | <Duration>
+- The first word after "DAY:" MUST be a weekday: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, or Sunday. A block that does not start with a weekday is discarded.
+- <Label> is a short free-text descriptor (e.g. "Lower + Push", "Easy Run"). Optional but recommended.
+- <Type> must be exactly one of: Strength, Aerobic, Hybrid, Recovery. (Use Aerobic for run/cardio-focused days.)
+- <Duration> is optional, written as Nmin (e.g. 60min).
+
+EXERCISE LINES
+Exercise Name | field | field | ...
+At least one field after the name. Fields can be in any order. Recognized formats (match exactly, NO spaces inside a token):
+- Sets x reps: NxN (e.g. 3x8). Use a single rep target, not a range.
+- Time: Nmin (e.g. 5min).
+- Distance: Nkm or N-Nkm (e.g. 5km, 4-5km).
+- Weight: Nkg (e.g. 45kg). Always include kg.
+- RPE: rpe N (e.g. rpe 8).
+- Tag (gives a colored label) — use one of exactly: lower, upper, core, aerobic, recovery, cooldown, mobility, rehab, agility, conditioning, coordination.
+- Note: any other free text is kept as a note (use for cues like "slow eccentric" or interval timing like "8 rounds 20s on / 40s easy").
+
+AVOID: rep ranges (3x8-12), seconds tokens as a sets/reps field (20sec), spaces inside a token (3 x 8), markdown or numbering.
+
+TEMPLATE
+DAY: Monday Lower + Push | Strength | 60min
+
+Warmup Walk | 8min | recovery
+Leg Press | 3x10 | 81kg | lower
+Romanian Deadlift | 3x8 | 40kg | lower
+Chest Press | 3x10 | 35kg | upper
+Lat Pulldown | 3x10 | 45kg | upper
+Cable Row | 3x12 | 35kg | upper
+Calf Raise | 3x12 | 20kg | lower | slow eccentric
+Bike Intervals | conditioning | 6 rounds 15s hard / 45s easy
+Cooldown Walk | 5min | cooldown
+
+DAY: Wednesday Easy Run | Aerobic | 50min
+
+Easy Outdoor Run | 5km | aerobic | conversational pace
+Walking Cooldown | 5min | recovery
+
+Now produce my plan in this exact format.</textarea>
 </div>
 
 <nav class="nav">
@@ -409,11 +458,11 @@
 
 <div class="modal-overlay" id="add-day-modal">
   <div class="modal">
-    <div class="modal-title" id="add-day-modal-title">Add Day</div>
-    <div class="modal-sub">New workout day added to your week</div>
+    <div class="modal-title" id="add-day-modal-title">Edit Day</div>
+    <div class="modal-sub">Weekday is fixed — set a label, type and duration</div>
     <div class="modal-field">
-      <label class="modal-label" for="add-day-name">Day name</label>
-      <input class="modal-input" id="add-day-name" placeholder="e.g. Friday Upper Body" aria-label="Day name">
+      <label class="modal-label" for="add-day-name">Label / suffix (optional)</label>
+      <input class="modal-input" id="add-day-name" placeholder="e.g. Aerobic, Recovery, Upper Body" aria-label="Day label suffix">
     </div>
     <div class="modal-field">
       <label class="modal-label">Type</label>
@@ -454,6 +503,7 @@ let checks = {};
 let logs = {};
 let goals = [];
 let sessions = {}; // sessions[dateStr] = { dayName, dayType, exLogs:[{name,weight,reps,rpe,notes}] }
+let programWeek = null; // Monday (YYYY-MM-DD) of the week the current menu belongs to
 let selectedDay = 0;
 let selectedEx = null;
 let selectedRPE = null;
@@ -468,13 +518,44 @@ let activeLogDate = null;        // date being logged to (null = today)
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']; // index 0=Mon … 6=Sun
+
+// WEEK / WEEKDAY HELPERS
+function fmtLocal(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function weekdayIdx(dateStr) { return (new Date(dateStr+'T12:00:00').getDay()+6)%7; } // 0=Mon … 6=Sun
+function mondayOfToday() {
+  const n = new Date();
+  const wd = (n.getDay()+6)%7;
+  return fmtLocal(new Date(n.getFullYear(), n.getMonth(), n.getDate()-wd, 12, 0, 0));
+}
+function dateForWeekday(idx) { // date string for weekday idx within the current week
+  const d = new Date(mondayOfToday()+'T12:00:00');
+  d.setDate(d.getDate()+idx);
+  return fmtLocal(d);
+}
+function dateForSelectedDay() { return dateForWeekday(selectedDay); }
+function blankWeek() { return WEEKDAYS.map(w => ({ weekday:w, label:'', type:'', duration:'', exercises:[] })); }
+function dayDisplayName(slot) { return slot ? (slot.label ? `${slot.weekday} ${slot.label}` : slot.weekday) : ''; }
+function dayMetaForDate(dateStr) {
+  const idx = weekdayIdx(dateStr);
+  const slot = program[idx];
+  return { name: slot ? dayDisplayName(slot) : WEEKDAYS[idx], type: slot ? (slot.type||'').toLowerCase() : '' };
+}
+function detectWeekday(name) {
+  const m = (name||'').trim().match(/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i);
+  return m ? WEEKDAYS.findIndex(w => w.toLowerCase() === m[1].toLowerCase()) : -1;
+}
+function stripWeekday(name) {
+  return (name||'').replace(/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*/i,'').trim();
+}
+function weekIsEmpty() { return !Array.isArray(program) || program.every(s => !s || !s.exercises || s.exercises.length === 0); }
 
 // STORAGE — localStorage primary, Firebase secondary (background sync)
 const LS_KEY = 'form_tracker_data';
 
 function saveLocal() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ program, checks, logs, goals, sessions }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ program, checks, logs, goals, sessions, programWeek }));
   } catch(e) { console.warn('localStorage save failed:', e); }
 }
 function loadLocal() {
@@ -487,6 +568,7 @@ function loadLocal() {
     logs     = d.logs     || {};
     goals    = d.goals    || [];
     sessions = d.sessions || {};
+    programWeek = d.programWeek || null;
     return true;
   } catch(e) { return false; }
 }
@@ -526,7 +608,8 @@ function saveAll() {
       checks: JSON.stringify(checks),
       logs: JSON.stringify(logs),
       goals: JSON.stringify(goals),
-      sessions: JSON.stringify(sessions)
+      sessions: JSON.stringify(sessions),
+      programWeek: JSON.stringify(programWeek)
     }).catch(e => console.warn('Firebase sync failed:', e.code || e.message));
   }
 }
@@ -549,21 +632,58 @@ async function loadAll() {
           logs     = d.logs     ? JSON.parse(d.logs)     : logs;
           goals    = d.goals    ? JSON.parse(d.goals)    : goals;
           sessions = fbSessions;
+          if (d.programWeek) { try { programWeek = JSON.parse(d.programWeek); } catch(e) { programWeek = d.programWeek; } }
           saveLocal(); // write Firebase data back to localStorage
         }
       }
     } catch(e) { console.warn('Firebase load failed:', e.code || e.message); }
   }
+  migrateProgramToWeekdays();
   migrateSessionDayIdx();
 }
-// One-time migration: backfill dayIdx on old exLog entries that predate the field
+// One-time migration: convert old arbitrary-day program into a fixed 7-slot Mon–Sun week
+function migrateProgramToWeekdays() {
+  if (!Array.isArray(program)) program = [];
+  const alreadyNew = program.length === 7 && program.every(p => p && p.weekday);
+  if (alreadyNew) return;
+  if (program.length === 0) { program = blankWeek(); return; }
+  try { localStorage.setItem('form_program_legacy', JSON.stringify(program)); } catch(e) {}
+  const week = blankWeek();
+  const unmatched = [];
+  program.forEach(old => {
+    const wd = detectWeekday(old.name || '');
+    if (wd >= 0 && week[wd].exercises.length === 0) {
+      week[wd].label = stripWeekday(old.name || '');
+      week[wd].type = old.type || '';
+      week[wd].duration = old.duration || '';
+      week[wd].exercises = old.exercises || [];
+    } else {
+      unmatched.push(old.name || '(unnamed)');
+    }
+  });
+  program = week;
+  if (!programWeek) programWeek = mondayOfToday(); // keep existing menu as "this week" so it isn't blanked
+  if (unmatched.length) window._unmatchedDays = unmatched;
+  saveLocal();
+}
+// Start-of-week reset: keep only weekday names, clear type/label/duration/exercises + checks
+function checkNewWeek() {
+  const curMon = mondayOfToday();
+  if (!programWeek) { programWeek = curMon; saveLocal(); return; }
+  if (programWeek !== curMon) {
+    program = blankWeek();
+    checks = {};
+    programWeek = curMon;
+    saveAll();
+  }
+}
+// Backfill dayIdx on old exLog entries; derive from the log's own date (deterministic)
 function migrateSessionDayIdx() {
   let changed = false;
-  Object.values(sessions).forEach(s => {
-    const dayIdx = program.findIndex(d => d.name === s.dayName);
-    if (dayIdx === -1) return; // can't match, leave alone
-    (s.exLogs || []).forEach(l => {
-      if (l.dayIdx === undefined) { l.dayIdx = dayIdx; changed = true; }
+  Object.keys(sessions).forEach(dateStr => {
+    const idx = weekdayIdx(dateStr);
+    (sessions[dateStr].exLogs || []).forEach(l => {
+      if (l.dayIdx === undefined) { l.dayIdx = idx; changed = true; }
     });
   });
   if (changed) saveAll();
@@ -613,10 +733,30 @@ function parseAndSaveProgram() {
   const parsed = parseProgram(raw);
   const status = document.getElementById('parse-status');
   if (parsed.length===0) { status.textContent='No days found. Check your format.'; status.className='parse-status error'; return; }
-  program = parsed; checks = {};
-  save('program', program); save('checks', checks);
-  status.textContent = `Parsed ${parsed.length} day${parsed.length>1?'s':''} successfully`;
-  status.className = 'parse-status';
+  // Map each parsed DAY block onto a fixed weekday slot by its leading weekday word
+  const week = blankWeek();
+  const unmatched = [];
+  parsed.forEach(d => {
+    const wd = detectWeekday(d.name);
+    if (wd >= 0 && week[wd].exercises.length === 0) {
+      week[wd].label = stripWeekday(d.name);
+      week[wd].type = d.type || '';
+      week[wd].duration = d.duration || '';
+      week[wd].exercises = d.exercises || [];
+    } else {
+      unmatched.push(d.name);
+    }
+  });
+  program = week; checks = {}; programWeek = mondayOfToday();
+  save('program', program); save('checks', checks); saveLocal();
+  if (unmatched.length) {
+    status.textContent = `Parsed ${parsed.length - unmatched.length} day${(parsed.length-unmatched.length)!==1?'s':''}. Couldn't map (no weekday in name): ${unmatched.join(', ')} — start the name with a weekday (e.g. "Saturday Recovery").`;
+    status.className = 'parse-status error';
+  } else {
+    status.textContent = `Parsed ${parsed.length} day${parsed.length>1?'s':''} successfully`;
+    status.className = 'parse-status';
+  }
+  selectedDay = (new Date().getDay()+6)%7;
   renderToday(); renderProgress();
 }
 
@@ -628,23 +768,19 @@ function renderTodayDate() {
 function renderWeekStrip() {
   const strip = document.getElementById('week-strip');
   strip.innerHTML = '';
+  const todayIdx = (new Date().getDay()+6)%7;
   program.forEach((day,i) => {
     const btn = document.createElement('button');
     btn.className = 'week-day-btn'+(i===selectedDay?' active':'');
-    btn.textContent = day.name.split(' ').slice(0,2).join(' ');
+    const abbr = day.weekday.slice(0,3);
+    btn.textContent = day.label ? `${abbr} ${day.label}` : abbr;
+    if (i === todayIdx && i !== selectedDay) btn.style.borderColor = 'var(--accent2)';
     btn.onclick = ()=>{ selectedDay=i; renderToday(); };
     strip.appendChild(btn);
   });
-  // Always show the + button
-  const addBtn = document.createElement('button');
-  addBtn.className = 'add-day-btn';
-  addBtn.textContent = '+';
-  addBtn.title = 'Add a new day';
-  addBtn.onclick = () => openAddDayModal();
-  strip.appendChild(addBtn);
 }
 
-// ADD / EDIT DAY
+// EDIT DAY (weekday label / type / duration — weekday name itself is fixed)
 const DAY_TYPES = ['Strength','Aerobic','Hybrid','Recovery','Other'];
 let editingDayIdx = null;
 let selectedDayType = '';
@@ -656,16 +792,16 @@ function buildDayTypeGrid() {
     `<button class="type-pill ${selectedDayType===t?'sel-'+t.toLowerCase():''}" onclick="selectDayType('${t}')">${t}</button>`
   ).join('');
 }
-function selectDayType(t) { selectedDayType = t; buildDayTypeGrid(); }
+function selectDayType(t) { selectedDayType = t === selectedDayType ? '' : t; buildDayTypeGrid(); }
 
 function openAddDayModal(editIdx) {
-  editingDayIdx = editIdx !== undefined ? editIdx : null;
-  const isEdit = editingDayIdx !== null;
-  selectedDayType = isEdit ? (program[editingDayIdx].type || '') : '';
-  document.getElementById('add-day-modal-title').textContent = isEdit ? 'Edit Day' : 'Add Day';
-  document.getElementById('add-day-save-btn').textContent = isEdit ? 'Save Changes' : 'Add Day';
-  document.getElementById('add-day-name').value = isEdit ? program[editingDayIdx].name : '';
-  document.getElementById('add-day-duration').value = isEdit ? (program[editingDayIdx].duration || '') : '';
+  editingDayIdx = (editIdx !== undefined ? editIdx : selectedDay);
+  const slot = program[editingDayIdx];
+  selectedDayType = slot.type || '';
+  document.getElementById('add-day-modal-title').textContent = `Edit ${slot.weekday}`;
+  document.getElementById('add-day-save-btn').textContent = 'Save Changes';
+  document.getElementById('add-day-name').value = slot.label || '';
+  document.getElementById('add-day-duration').value = slot.duration || '';
   buildDayTypeGrid();
   document.getElementById('add-day-modal').classList.add('open');
   setTimeout(() => document.getElementById('add-day-name').focus(), 100);
@@ -676,17 +812,12 @@ function closeAddDayModal() {
   selectedDayType = '';
 }
 function saveNewDay() {
-  const name = document.getElementById('add-day-name').value.trim();
-  if (!name) { document.getElementById('add-day-name').focus(); return; }
+  if (editingDayIdx === null) return;
+  const label = document.getElementById('add-day-name').value.trim();
   const duration = document.getElementById('add-day-duration').value.trim();
-  if (editingDayIdx !== null) {
-    program[editingDayIdx].name = name;
-    program[editingDayIdx].type = selectedDayType;
-    program[editingDayIdx].duration = duration;
-  } else {
-    program.push({ name, type: selectedDayType, duration, exercises: [] });
-    selectedDay = program.length - 1;
-  }
+  program[editingDayIdx].label = label;
+  program[editingDayIdx].type = selectedDayType;
+  program[editingDayIdx].duration = duration;
   save('program', program);
   closeAddDayModal();
   renderToday();
@@ -694,29 +825,31 @@ function saveNewDay() {
 function renderToday() {
   renderTodayDate(); renderWeekStrip(); renderSessionNotes();
   const content = document.getElementById('today-content');
-  if (program.length===0) {
-    content.innerHTML = `<div class="no-program-banner">No program loaded. Go to the Program tab and paste your plan.</div><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">No program yet</div><div class="empty-state-sub">Paste your ChatGPT plan in the Program tab</div></div>`;
-    return;
-  }
   const day = program[selectedDay];
   const dayKey = `d${selectedDay}`;
   const total = day.exercises.length;
   const done = day.exercises.filter((_,i)=>checks[`${dayKey}_${i}`]).length;
-  const todayStr = new Date().toISOString().slice(0,10);
-  const allTodayExLogs = sessions[todayStr] ? sessions[todayStr].exLogs : [];
-  // Filter to logs for this day tab only
-  const todayExLogs = allTodayExLogs.filter(l => l.dayIdx === selectedDay);
+  const logDate = dateForSelectedDay();              // date this weekday maps to in the current week
+  const dispName = dayDisplayName(day);
+  const allTodayExLogs = sessions[logDate] ? sessions[logDate].exLogs : []; // a date belongs to exactly one weekday
+  const todayExLogs = allTodayExLogs;
 
-  let html = `<div class="day-card"><div class="day-header" onclick="toggleDay('day-exlist-main')"><div><div class="day-name">${day.name}</div><div class="day-meta">${day.type?`<span class="day-type-badge ${day.type.toLowerCase()}">${day.type}</span>`:''} ${day.duration?`<span class="day-duration">${day.duration}</span>`:''}</div></div><div style="display:flex;align-items:center;gap:10px"><div class="day-progress ${done===total?'done':''}">${done}/${total}</div><button onclick="event.stopPropagation();openAddDayModal(${selectedDay})" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;line-height:1" title="Edit day">✎</button></div></div><div class="day-exercises open" id="day-exlist-main">`;
+  let html = '';
+  // Item 1 — new-week banner when no exercises are loaded for the week
+  if (weekIsEmpty()) {
+    html += `<div class="no-program-banner">No menu for this week yet. Paste it in the Program tab — or add custom exercises to any day below.</div>`;
+  }
+
+  html += `<div class="day-card"><div class="day-header" onclick="toggleDay('day-exlist-main')"><div><div class="day-name">${dispName}</div><div class="day-meta">${day.type?`<span class="day-type-badge ${day.type.toLowerCase()}">${day.type}</span>`:''} ${day.duration?`<span class="day-duration">${day.duration}</span>`:''}</div></div><div style="display:flex;align-items:center;gap:10px"><div class="day-progress ${total>0&&done===total?'done':''}">${done}/${total}</div><button onclick="event.stopPropagation();openAddDayModal(${selectedDay})" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;line-height:1" title="Edit day">✎</button></div></div><div class="day-exercises open" id="day-exlist-main">`;
   day.exercises.forEach((ex,i) => {
     const checked = !!checks[`${dayKey}_${i}`];
     const hasLog = logs[ex.name] && logs[ex.name].length>0;
-    // Collect today's status tags for this exercise
+    // Collect this day's status tags for this exercise
     const todayTags = todayExLogs.filter(l=>l.name===ex.name).flatMap(l=>l.statusTags||[]);
     const uniqueTodayTags = [...new Set(todayTags)];
-    html += `<div class="exercise-row"><div class="exercise-check ${checked?'checked':''}" onclick="toggleCheck(${selectedDay},${i})"></div><div class="exercise-info"><div class="exercise-name ${checked?'checked-text':''}">${ex.name}</div><div class="exercise-details">${ex.volume?`<span class="ex-vol">${ex.volume}</span>`:''}${ex.weight?`<span class="ex-weight">${ex.weight}</span>`:''}${ex.tags.map(t=>`<span class="ex-tag ${t}">${t}</span>`).join('')}${ex.rpe?`<span class="ex-rpe">${ex.rpe}</span>`:''}${ex.notes.map(n=>`<span class="ex-note">${n}</span>`).join('')}${getStatusTagHtml(uniqueTodayTags)}</div></div><button class="log-btn ${hasLog?'has-log':''}" onclick="openModal(${selectedDay},${i})">LOG</button></div>`;
+    html += `<div class="exercise-row"><div class="exercise-check ${checked?'checked':''}" onclick="toggleCheck(${selectedDay},${i})"></div><div class="exercise-info"><div class="exercise-name ${checked?'checked-text':''}">${ex.name}</div><div class="exercise-details">${ex.volume?`<span class="ex-vol">${ex.volume}</span>`:''}${ex.weight?`<span class="ex-weight">${ex.weight}</span>`:''}${ex.tags.map(t=>`<span class="ex-tag ${t}">${t}</span>`).join('')}${ex.rpe?`<span class="ex-rpe">${ex.rpe}</span>`:''}${ex.notes.map(n=>`<span class="ex-note">${n}</span>`).join('')}${getStatusTagHtml(uniqueTodayTags)}</div></div><button class="log-btn ${hasLog?'has-log':''}" onclick="openModal(${selectedDay},${i},'${logDate}')">LOG</button><button onclick="event.stopPropagation();deletePlannedExercise(${selectedDay},${i})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete exercise">×</button></div>`;
   });
-  // Show custom/ad-hoc exercises logged today (not in the planned program)
+  // Show custom/ad-hoc exercises logged this day (not in the planned program)
   const plannedNames = new Set(day.exercises.map(e => e.name));
   const customToday = [];
   const seenCustom = new Set();
@@ -727,13 +860,13 @@ function renderToday() {
     }
   });
   if (customToday.length > 0) {
-    html += `<div style="padding:6px 14px 4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border)">Added today</div>`;
+    html += `<div style="padding:6px 14px 4px;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--border)">Added this day</div>`;
     customToday.forEach(name => {
-      const safeName = name.replace(/'/g,"\'");
-      // Get entries with their actual index in sessions[today].exLogs
+      const safeName = name.replace(/'/g,"\\'");
+      // Get entries with their actual index in sessions[logDate].exLogs
       const entriesWithIdx = [];
       allTodayExLogs.forEach((l, i) => {
-        if (l.name === name && l.dayIdx === selectedDay) entriesWithIdx.push({entry:l, sessionIdx:i});
+        if (l.name === name) entriesWithIdx.push({entry:l, sessionIdx:i});
       });
       const multiSet = entriesWithIdx.length > 1;
       if (multiSet) html += `<div style="padding:5px 14px 2px 46px;font-size:12px;font-weight:600;color:var(--text)">${name}</div>`;
@@ -746,14 +879,42 @@ function renderToday() {
         const runExtras = [entry.cadence?entry.cadence+'spm':'', entry.runDuration?entry.runDuration+'min':''].filter(Boolean);
         const tagsHtml = getStatusTagHtml(entry.statusTags||[]);
         const setLabel = multiSet ? `<span style="font-size:10px;color:var(--muted);font-weight:600">Set ${ei+1}&nbsp;</span>` : '';
-        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${runExtras.length?`<span class="ex-run">${runExtras.join(' · ')}</span>`:''}${entry.rpe?`<span class="ex-rpe">RPE ${entry.rpe}</span>`:''}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${sessionIdx},${selectedDay})" style="font-size:10px">EDIT</button></div>`;
+        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${runExtras.length?`<span class="ex-run">${runExtras.join(' · ')}</span>`:''}${entry.rpe?`<span class="ex-rpe">RPE ${entry.rpe}</span>`:''}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${sessionIdx},${selectedDay},'${logDate}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${logDate}',${sessionIdx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
       });
     });
   }
 
-  html += `<button class="custom-ex-btn" onclick="openCustomModal(${selectedDay})"><span style="font-size:16px;line-height:1">＋</span> Custom exercise</button>`;
+  html += `<button class="custom-ex-btn" onclick="openCustomModal(${selectedDay},'${logDate}')"><span style="font-size:16px;line-height:1">＋</span> Custom exercise</button>`;
   html += `</div></div>`;
   content.innerHTML = html;
+}
+function deletePlannedExercise(dayIdx, exIdx) {
+  if (!confirm('Remove this exercise from the plan?')) return;
+  program[dayIdx].exercises.splice(exIdx, 1);
+  // checks are positional — clear this day's checks to avoid misalignment after reindex
+  Object.keys(checks).forEach(k => { if (k.startsWith('d'+dayIdx+'_')) delete checks[k]; });
+  save('program', program); save('checks', checks);
+  renderToday();
+}
+function deleteLoggedEntry(dateStr, sessionIdx) {
+  const s = sessions[dateStr];
+  if (!s || !s.exLogs[sessionIdx]) return;
+  if (!confirm('Delete this logged entry?')) return;
+  const removed = s.exLogs[sessionIdx];
+  s.exLogs.splice(sessionIdx, 1);
+  // remove the matching progression entry in logs[]
+  const arr = logs[removed.name] || [];
+  const li = arr.findIndex(e => e.date === dateStr && (e.weight||'') === (removed.weight||'') && (e.reps||'') === (removed.reps||'') && (e.rpe||'') === (removed.rpe||''));
+  if (li >= 0) arr.splice(li, 1);
+  if (arr.length === 0) delete logs[removed.name]; else logs[removed.name] = arr;
+  // If the day is now empty (no exercises and no notes), remove the session so the calendar reverts to plain
+  if (s.exLogs.length === 0 && !(s.notes && s.notes.trim())) {
+    delete sessions[dateStr];
+    if (selectedCalendarDate === dateStr) selectedCalendarDate = null;
+  }
+  saveAll();
+  if (dateStr === dateForSelectedDay()) renderToday();
+  renderProgress();
 }
 function toggleDay(id) { const el=document.getElementById(id); if(el) el.classList.toggle('open'); }
 function toggleCheck(dayIdx, exIdx) {
@@ -802,16 +963,16 @@ function getStatusTagHtml(tags) {
 // SESSION NOTES
 function renderSessionNotes() {
   const area = document.getElementById('session-notes-area');
-  if (!area || program.length === 0) return;
-  const today = new Date().toISOString().slice(0,10);
+  if (!area) return;
+  const today = dateForSelectedDay();
   const existing = sessions[today] ? (sessions[today].notes || '') : '';
   area.innerHTML = `<div class="session-notes-wrap"><div class="session-notes-label">Session notes</div><textarea class="session-notes-input" id="session-notes-input" rows="2" placeholder="Energy, soreness, recovery…" oninput="saveSessionNotes()">${existing}</textarea></div>`;
 }
 function saveSessionNotes() {
   const val = document.getElementById('session-notes-input');
   if (!val) return;
-  const today = new Date().toISOString().slice(0,10);
-  if (!sessions[today]) sessions[today] = { dayName: program[selectedDay]?.name||'Workout', dayType: (program[selectedDay]?.type||'').toLowerCase(), exLogs: [] };
+  const today = dateForSelectedDay();
+  if (!sessions[today]) { const meta = dayMetaForDate(today); sessions[today] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' }; }
   sessions[today].notes = val.value;
   save('sessions', sessions);
 }
@@ -977,7 +1138,7 @@ function saveLog() {
   const runDur   = runVisible ? document.getElementById('modal-run-duration').value.trim() : '';
   const hr       = runVisible ? document.getElementById('modal-hr').value.trim() : '';
 
-  const entry = {name:selectedEx.exName, dayIdx:selectedEx.dayIdx, weight:weight||'', reps:reps||'', rpe:selectedRPE||'', notes:notes||'', statusTags:tags, pace:pace||'', cadence:cadence||'', runDuration:runDur||'', hr:hr||''};
+  const entry = {name:selectedEx.exName, dayIdx:weekdayIdx(today), weight:weight||'', reps:reps||'', rpe:selectedRPE||'', notes:notes||'', statusTags:tags, pace:pace||'', cadence:cadence||'', runDuration:runDur||'', hr:hr||''};
 
   if (selectedEx.editSessionIdx !== undefined) {
     // Edit mode — update in place
@@ -993,14 +1154,14 @@ function saveLog() {
     if (!logs[selectedEx.exName]) logs[selectedEx.exName] = [];
     logs[selectedEx.exName].push({date:today, ...entry});
     if (!sessions[today]) {
-      const day = program[selectedEx.dayIdx];
-      sessions[today] = { dayName: day ? day.name : 'Workout', dayType: day ? (day.type||'').toLowerCase() : '', exLogs: [], notes: '' };
+      const meta = dayMetaForDate(today);
+      sessions[today] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' };
     }
     sessions[today].exLogs.push(entry);
     if (!selectedEx.isCustom) checks[`d${selectedEx.dayIdx}_${selectedEx.exIdx}`] = true;
   }
   saveAll(); closeModal();
-  if (activeLogDate === new Date().toISOString().slice(0,10)) renderToday();
+  if (today === dateForSelectedDay()) renderToday();
   renderProgress();
 }
 
@@ -1040,10 +1201,11 @@ function renderCalendar() {
   for (let d=1; d<=daysInMonth; d++) {
     const dateStr = `${monthStr}-${String(d).padStart(2,'0')}`;
     const session = sessions[dateStr];
+    const hasWork = session && (session.exLogs||[]).length > 0; // empty sessions render as plain
     const isToday = dateStr === todayStr;
     let cls = 'cal-cell';
     if (isToday) cls += ' today';
-    if (session) {
+    if (hasWork) {
       cls += ' has-workout';
       const t = session.dayType || '';
       if (t.includes('strength')) cls += ' type-strength';
@@ -1053,7 +1215,7 @@ function renderCalendar() {
       else cls += ' type-other';
     }
     if (dateStr === selectedCalendarDate) cls += ' selected-day';
-    const summary = session ? getSessionSummary(session) : '';
+    const summary = hasWork ? getSessionSummary(session) : '';
     html += `<div class="${cls}" onclick="openCalendarDay('${dateStr}')"><div class="cal-day-num">${d}</div>${summary ? `<div class="cal-summary">${summary}</div>` : ''}</div>`;
   }
   html += `</div></div>`;
@@ -1062,18 +1224,17 @@ function renderCalendar() {
 function getSessionSummary(session) {
   const exLogs = session.exLogs || [];
   if (!exLogs.length) return '';
-  // Look for a run entry (has pace, runDuration, or km-style reps)
+  // Show run stats whenever an entry has run metrics (km distance, pace, or duration) — regardless of day type
   const runEntry = exLogs.find(l => l.pace || l.runDuration || (l.reps && /\d+(\.\d+)?\s*km/i.test(l.reps)));
   if (runEntry) {
     const parts = [];
     if (runEntry.reps && /\d/.test(runEntry.reps)) parts.push(runEntry.reps);
     if (runEntry.runDuration) parts.push(runEntry.runDuration + 'min');
     if (runEntry.pace) parts.push(runEntry.pace + '/km');
-    return parts.join(' · ');
+    if (parts.length) return parts.join(' · ');
   }
-  // Non-run: show exercise count or day type
-  const names = new Set(exLogs.map(l => l.name));
-  return names.size + ' ex';
+  // Otherwise (gym day with no run metrics) → list exercise names
+  return [...new Set(exLogs.map(l => l.name))].join(' · ');
 }
 function shiftCalendar(dir) {
   calendarMonth += dir;
@@ -1095,10 +1256,9 @@ function renderCalendarDayDetail(dateStr) {
   const s = sessions[dateStr];
   const d = new Date(dateStr+'T12:00:00');
   const dateLabel = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  const dayLabel = s ? s.dayName : 'No workout logged';
-  // Find matching program dayIdx from session dayName
-  const dayIdx = s ? program.findIndex(p => p.name === s.dayName) : -1;
-  const safeDayIdx = dayIdx >= 0 ? dayIdx : 0;
+  // Weekday is deterministic from the date — never falls back to program[0]
+  const safeDayIdx = weekdayIdx(dateStr);
+  const dayLabel = s ? s.dayName : dayMetaForDate(dateStr).name;
 
   let html = `<div class="cal-day-detail" id="cal-day-detail">
     <div class="cal-day-detail-header">
@@ -1136,7 +1296,7 @@ function renderCalendarDayDetail(dateStr) {
         const tagsHtml = getStatusTagHtml(entry.statusTags||[]);
         const rpeHtml = entry.rpe ? `<span class="ex-rpe">RPE ${entry.rpe}</span>` : '';
         const setLabel = multiSet ? `<span style="font-size:10px;color:var(--muted);font-weight:600">Set ${ei+1}&nbsp;</span>` : '';
-        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${rpeHtml}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${idx},${safeDayIdx},'${dateStr}')" style="font-size:10px">EDIT</button></div>`;
+        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${rpeHtml}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${idx},${safeDayIdx},'${dateStr}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${dateStr}',${idx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
       });
     });
     html += `</div>`;
@@ -1149,9 +1309,8 @@ function renderCalendarDayDetail(dateStr) {
 }
 function saveCalendarNotes(dateStr, val) {
   if (!sessions[dateStr]) {
-    const dayIdx = program.findIndex(p => p.name === (sessions[dateStr]?.dayName||''));
-    const day = dayIdx >= 0 ? program[dayIdx] : null;
-    sessions[dateStr] = { dayName: day?day.name:'Workout', dayType: day?(day.type||'').toLowerCase():'', exLogs: [], notes: '' };
+    const meta = dayMetaForDate(dateStr);
+    sessions[dateStr] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' };
   }
   sessions[dateStr].notes = val;
   save('sessions', sessions);
@@ -1346,10 +1505,10 @@ function switchScreen(name, btn) {
 
 // BACKUP
 function exportData() {
-  const data = { exportedAt: new Date().toISOString(), program, checks, logs, goals, sessions };
+  const data = { exportedAt: new Date().toISOString(), program, checks, logs, goals, sessions, programWeek };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download=`form-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  const a = document.createElement('a'); a.href=url; a.download=`sextus-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
   URL.revokeObjectURL(url);
   const status = document.getElementById('backup-status');
   status.textContent = 'Backup exported successfully'; status.className = 'parse-status';
@@ -1362,12 +1521,31 @@ function importData(event) {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.program || !data.logs) { status.textContent='Invalid backup file.'; status.className='parse-status error'; return; }
-      program = data.program||[]; checks = data.checks||{}; logs = data.logs||{}; goals = data.goals||[]; sessions = data.sessions||{};
-      await saveAll(); renderToday(); renderGoals();
+      program = data.program||[]; checks = data.checks||{}; logs = data.logs||{}; goals = data.goals||[]; sessions = data.sessions||{}; programWeek = data.programWeek||null;
+      migrateProgramToWeekdays(); checkNewWeek();
+      await saveAll(); renderToday(); renderGoals(); renderProgress();
       status.textContent = `Restored from ${data.exportedAt ? data.exportedAt.slice(0,10) : 'backup'}`; status.className = 'parse-status';
     } catch(err) { status.textContent='Failed to parse backup file.'; status.className='parse-status error'; }
   };
   reader.readAsText(file); event.target.value='';
+}
+
+// COPY MENU PROMPT — gives the user a ChatGPT-ready prompt + template
+function copyMenuPrompt() {
+  const src = document.getElementById('menu-prompt-src');
+  const status = document.getElementById('menu-prompt-status');
+  const text = src ? src.value : '';
+  const ok = () => { if (status) { status.textContent = '✓ Prompt copied — paste it into ChatGPT'; status.className = 'parse-status'; setTimeout(() => { status.textContent = ''; }, 4000); } };
+  const fail = () => {
+    // Fallback: select the hidden textarea contents so the user can copy manually
+    if (src) { src.style.display = 'block'; src.style.width = '100%'; src.style.minHeight = '120px'; src.focus(); src.select(); }
+    if (status) { status.textContent = 'Auto-copy blocked — select all in the box and copy manually'; status.className = 'parse-status error'; }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(ok).catch(fail);
+  } else {
+    fail();
+  }
 }
 
 // CHATGPT EXPORT — session selector
@@ -1519,7 +1697,7 @@ DAY: ${day.name}${day.type?' | '+day.type:''}${day.duration?' | '+day.duration:'
   }).catch(() => {
     const blob = new Blob([text], {type:'text/plain'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download=`form-chatgpt-${today}.txt`; a.click();
+    const a = document.createElement('a'); a.href=url; a.download=`sextus-chatgpt-${today}.txt`; a.click();
     URL.revokeObjectURL(url);
     status.textContent = 'Downloaded as .txt'; status.className = 'parse-status';
   });
@@ -1567,25 +1745,14 @@ Mobility Work | 10min | mobility
 Ankle Stability Drill | 10min | rehab
 Foam Rolling | 10min | recovery`;
 
-// One-time migration: backfill dayIdx on old exLog entries that predate the field
-function migrateSessionDayIdx() {
-  let changed = false;
-  Object.values(sessions).forEach(s => {
-    const dayIdx = program.findIndex(d => d.name === s.dayName);
-    if (dayIdx === -1) return;
-    (s.exLogs || []).forEach(l => {
-      if (l.dayIdx === undefined) { l.dayIdx = dayIdx; changed = true; }
-    });
-  });
-  if (changed) saveAll();
-}
-
 // INIT
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   if (user) {
     document.getElementById('auth-overlay').style.display = 'none';
     await loadAll();
+    checkNewWeek();
+    selectedDay = (new Date().getDay()+6)%7; // default to today's weekday
     renderToday(); renderProgress(); renderGoals();
   } else {
     document.getElementById('auth-overlay').style.display = '';
