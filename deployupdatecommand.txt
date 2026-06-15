@@ -1,0 +1,2 @@
+cd "C:\Users\CoreyTangEASAcademy\Health and Workout Trackers"
+firebase deploy
