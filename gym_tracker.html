@@ -497,6 +497,12 @@ let currentUser = null;
 function signIn() { auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
 function signOutUser() { auth.signOut(); }
 
+// HTML ESCAPE — always use when interpolating user data into innerHTML
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // STATE
 let program = [];
 let checks = {};
@@ -522,6 +528,7 @@ const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday',
 
 // WEEK / WEEKDAY HELPERS
 function fmtLocal(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStr() { return fmtLocal(new Date()); } // always uses LOCAL date — avoids UTC rollover after 16:00 in UTC+8
 function weekdayIdx(dateStr) { return (new Date(dateStr+'T12:00:00').getDay()+6)%7; } // 0=Mon … 6=Sun
 function mondayOfToday() {
   const n = new Date();
@@ -555,7 +562,9 @@ const LS_KEY = 'form_tracker_data';
 
 function saveLocal() {
   try {
+    const ts = Date.now();
     localStorage.setItem(LS_KEY, JSON.stringify({ program, checks, logs, goals, sessions, programWeek }));
+    localStorage.setItem('_updatedAt', JSON.stringify(ts));
   } catch(e) { console.warn('localStorage save failed:', e); }
 }
 function loadLocal() {
@@ -609,7 +618,8 @@ function saveAll() {
       logs: JSON.stringify(logs),
       goals: JSON.stringify(goals),
       sessions: JSON.stringify(sessions),
-      programWeek: JSON.stringify(programWeek)
+      programWeek: JSON.stringify(programWeek),
+      updatedAt: Date.now()   // last-write timestamp for sync conflict resolution
     }).catch(e => console.warn('Firebase sync failed:', e.code || e.message));
   }
 }
@@ -622,17 +632,24 @@ async function loadAll() {
       const doc = await db.collection('users').doc(currentUser.uid).get();
       if (doc.exists) {
         const d = doc.data();
-        // Merge: take whichever has more sessions (rough heuristic for "newer")
+        // Merge: last-write-wins using updatedAt timestamp.
+        // Falls back to session-count if either side has no timestamp (legacy data).
+        const fbUpdatedAt = d.updatedAt || 0;
+        const localUpdatedAt = (() => { try { return JSON.parse(localStorage.getItem('_updatedAt') || '0'); } catch(e) { return 0; } })();
         const fbSessions = d.sessions ? JSON.parse(d.sessions) : {};
         const localCount = Object.keys(sessions).length;
         const fbCount = Object.keys(fbSessions).length;
-        if (fbCount > localCount) {
+        const preferFirebase = fbUpdatedAt && localUpdatedAt
+          ? fbUpdatedAt > localUpdatedAt          // both have timestamps → newest wins
+          : fbCount > localCount;                 // legacy fallback: more sessions wins
+        if (preferFirebase) {
           program  = d.program  ? JSON.parse(d.program)  : program;
           checks   = d.checks   ? JSON.parse(d.checks)   : checks;
           logs     = d.logs     ? JSON.parse(d.logs)     : logs;
           goals    = d.goals    ? JSON.parse(d.goals)    : goals;
           sessions = fbSessions;
           if (d.programWeek) { try { programWeek = JSON.parse(d.programWeek); } catch(e) { programWeek = d.programWeek; } }
+          try { localStorage.setItem('_updatedAt', JSON.stringify(fbUpdatedAt)); } catch(e) {}
           saveLocal(); // write Firebase data back to localStorage
         }
       }
@@ -840,14 +857,14 @@ function renderToday() {
     html += `<div class="no-program-banner">No menu for this week yet. Paste it in the Program tab — or add custom exercises to any day below.</div>`;
   }
 
-  html += `<div class="day-card"><div class="day-header" onclick="toggleDay('day-exlist-main')"><div><div class="day-name">${dispName}</div><div class="day-meta">${day.type?`<span class="day-type-badge ${day.type.toLowerCase()}">${day.type}</span>`:''} ${day.duration?`<span class="day-duration">${day.duration}</span>`:''}</div></div><div style="display:flex;align-items:center;gap:10px"><div class="day-progress ${total>0&&done===total?'done':''}">${done}/${total}</div><button onclick="event.stopPropagation();openAddDayModal(${selectedDay})" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;line-height:1" title="Edit day">✎</button></div></div><div class="day-exercises open" id="day-exlist-main">`;
+  html += `<div class="day-card"><div class="day-header" onclick="toggleDay('day-exlist-main')"><div><div class="day-name">${escapeHtml(dispName)}</div><div class="day-meta">${day.type?`<span class="day-type-badge ${day.type.toLowerCase()}">${escapeHtml(day.type)}</span>`:''} ${day.duration?`<span class="day-duration">${escapeHtml(day.duration)}</span>`:''}</div></div><div style="display:flex;align-items:center;gap:10px"><div class="day-progress ${total>0&&done===total?'done':''}">${done}/${total}</div><button onclick="event.stopPropagation();openAddDayModal(${selectedDay})" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;line-height:1" title="Edit day">✎</button></div></div><div class="day-exercises open" id="day-exlist-main">`;
   day.exercises.forEach((ex,i) => {
     const checked = !!checks[`${dayKey}_${i}`];
     const hasLog = logs[ex.name] && logs[ex.name].length>0;
     // Collect this day's status tags for this exercise
     const todayTags = todayExLogs.filter(l=>l.name===ex.name).flatMap(l=>l.statusTags||[]);
     const uniqueTodayTags = [...new Set(todayTags)];
-    html += `<div class="exercise-row"><div class="exercise-check ${checked?'checked':''}" onclick="toggleCheck(${selectedDay},${i})"></div><div class="exercise-info"><div class="exercise-name ${checked?'checked-text':''}">${ex.name}</div><div class="exercise-details">${ex.volume?`<span class="ex-vol">${ex.volume}</span>`:''}${ex.weight?`<span class="ex-weight">${ex.weight}</span>`:''}${ex.tags.map(t=>`<span class="ex-tag ${t}">${t}</span>`).join('')}${ex.rpe?`<span class="ex-rpe">${ex.rpe}</span>`:''}${ex.notes.map(n=>`<span class="ex-note">${n}</span>`).join('')}${getStatusTagHtml(uniqueTodayTags)}</div></div><button class="log-btn ${hasLog?'has-log':''}" onclick="openModal(${selectedDay},${i},'${logDate}')">LOG</button><button onclick="event.stopPropagation();deletePlannedExercise(${selectedDay},${i})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete exercise">×</button></div>`;
+    html += `<div class="exercise-row"><div class="exercise-check ${checked?'checked':''}" onclick="toggleCheck(${selectedDay},${i})"></div><div class="exercise-info"><div class="exercise-name ${checked?'checked-text':''}">${escapeHtml(ex.name)}</div><div class="exercise-details">${ex.volume?`<span class="ex-vol">${escapeHtml(ex.volume)}</span>`:''}${ex.weight?`<span class="ex-weight">${escapeHtml(ex.weight)}</span>`:''}${ex.tags.map(t=>`<span class="ex-tag ${t}">${escapeHtml(t)}</span>`).join('')}${ex.rpe?`<span class="ex-rpe">${escapeHtml(ex.rpe)}</span>`:''}${ex.notes.map(n=>`<span class="ex-note">${escapeHtml(n)}</span>`).join('')}${getStatusTagHtml(uniqueTodayTags)}</div></div><button class="log-btn ${hasLog?'has-log':''}" onclick="openModal(${selectedDay},${i},'${logDate}')">LOG</button><button onclick="event.stopPropagation();deletePlannedExercise(${selectedDay},${i})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete exercise">×</button></div>`;
   });
   // Show custom/ad-hoc exercises logged this day (not in the planned program)
   const plannedNames = new Set(day.exercises.map(e => e.name));
@@ -869,17 +886,17 @@ function renderToday() {
         if (l.name === name) entriesWithIdx.push({entry:l, sessionIdx:i});
       });
       const multiSet = entriesWithIdx.length > 1;
-      if (multiSet) html += `<div style="padding:5px 14px 2px 46px;font-size:12px;font-weight:600;color:var(--text)">${name}</div>`;
+      if (multiSet) html += `<div style="padding:5px 14px 2px 46px;font-size:12px;font-weight:600;color:var(--text)">${escapeHtml(name)}</div>`;
       entriesWithIdx.forEach(({entry, sessionIdx}, ei) => {
         const valParts = [];
-        if (entry.reps) valParts.push(entry.reps);
-        if (entry.weight) valParts.push(entry.weight+'kg');
-        if (entry.pace) valParts.push(entry.pace+'/km');
-        if (entry.hr) valParts.push('\u2665 '+entry.hr);
-        const runExtras = [entry.cadence?entry.cadence+'spm':'', entry.runDuration?entry.runDuration+'min':''].filter(Boolean);
+        if (entry.reps) valParts.push(escapeHtml(entry.reps));
+        if (entry.weight) valParts.push(escapeHtml(entry.weight)+'kg');
+        if (entry.pace) valParts.push(escapeHtml(entry.pace)+'/km');
+        if (entry.hr) valParts.push('\u2665 '+escapeHtml(entry.hr));
+        const runExtras = [entry.cadence?escapeHtml(entry.cadence)+'spm':'', entry.runDuration?escapeHtml(entry.runDuration)+'min':''].filter(Boolean);
         const tagsHtml = getStatusTagHtml(entry.statusTags||[]);
         const setLabel = multiSet ? `<span style="font-size:10px;color:var(--muted);font-weight:600">Set ${ei+1}&nbsp;</span>` : '';
-        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${runExtras.length?`<span class="ex-run">${runExtras.join(' · ')}</span>`:''}${entry.rpe?`<span class="ex-rpe">RPE ${entry.rpe}</span>`:''}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${sessionIdx},${selectedDay},'${logDate}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${logDate}',${sessionIdx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
+        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${escapeHtml(name)}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${runExtras.length?`<span class="ex-run">${runExtras.join(' · ')}</span>`:''}${entry.rpe?`<span class="ex-rpe">RPE ${escapeHtml(String(entry.rpe))}</span>`:''}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${sessionIdx},${selectedDay},'${logDate}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${logDate}',${sessionIdx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
       });
     });
   }
@@ -956,7 +973,7 @@ function getStatusTagHtml(tags) {
   const KNOWN = ['completed','partial','skipped','fatigued','pain','easy','hard'];
   return tags.map(t => {
     const cls = KNOWN.includes(t) ? t : 'default';
-    return `<span class="ex-status ${cls}">${t}</span>`;
+    return `<span class="ex-status ${cls}">${escapeHtml(t)}</span>`;
   }).join('');
 }
 
@@ -966,7 +983,7 @@ function renderSessionNotes() {
   if (!area) return;
   const today = dateForSelectedDay();
   const existing = sessions[today] ? (sessions[today].notes || '') : '';
-  area.innerHTML = `<div class="session-notes-wrap"><div class="session-notes-label">Session notes</div><textarea class="session-notes-input" id="session-notes-input" rows="2" placeholder="Energy, soreness, recovery…" oninput="saveSessionNotes()">${existing}</textarea></div>`;
+  area.innerHTML = `<div class="session-notes-wrap"><div class="session-notes-label">Session notes</div><textarea class="session-notes-input" id="session-notes-input" rows="2" placeholder="Energy, soreness, recovery…" oninput="saveSessionNotes()">${escapeHtml(existing)}</textarea></div>`;
 }
 function saveSessionNotes() {
   const val = document.getElementById('session-notes-input');
@@ -990,7 +1007,7 @@ function buildRPEGrid(selected) {
   }
 }
 function openModal(dayIdx, exIdx, dateOverride) {
-  activeLogDate = dateOverride || new Date().toISOString().slice(0,10);
+  activeLogDate = dateOverride || todayStr();
   const day = program[dayIdx]; const ex = day.exercises[exIdx];
   selectedEx = {dayIdx,exIdx,exName:ex.name};
   selectedRPE = null;
@@ -1018,7 +1035,7 @@ function openModal(dayIdx, exIdx, dateOverride) {
   document.getElementById('log-modal').classList.add('open');
 }
 function openCustomModalForExisting(name, dayIdx, dateOverride) {
-  activeLogDate = dateOverride || new Date().toISOString().slice(0,10);
+  activeLogDate = dateOverride || todayStr();
   selectedEx = { dayIdx, exIdx: -1, exName: name, isCustom: true };
   selectedRPE = null;
   selectedTags = [];
@@ -1046,7 +1063,7 @@ function openCustomModalForExisting(name, dayIdx, dateOverride) {
   document.getElementById('log-modal').classList.add('open');
 }
 function openCustomModal(dayIdx, dateOverride) {
-  activeLogDate = dateOverride || new Date().toISOString().slice(0,10);
+  activeLogDate = dateOverride || todayStr();
   selectedEx = { dayIdx, exIdx: -1, exName: '', isCustom: true };
   selectedRPE = null;
   selectedTags = [];
@@ -1090,7 +1107,7 @@ function toggleRunSection() {
   btn.setAttribute('aria-expanded', opening);
 }
 function openEditModal(name, sessionIdx, dayIdx, dateOverride) {
-  activeLogDate = dateOverride || new Date().toISOString().slice(0,10);
+  activeLogDate = dateOverride || todayStr();
   const todayStr = activeLogDate;
   const entry = sessions[todayStr]?.exLogs[sessionIdx];
   if (!entry) return;
@@ -1129,7 +1146,7 @@ function saveLog() {
   const weight = document.getElementById('modal-weight').value;
   const reps   = document.getElementById('modal-reps').value;
   const notes  = document.getElementById('modal-notes').value;
-  const today  = activeLogDate || new Date().toISOString().slice(0,10);
+  const today  = activeLogDate || todayStr();
   const tags   = selectedTags.slice();
   // Running fields — only read when run section is visible
   const runVisible = document.getElementById('run-metrics-grid').style.display !== 'none';
@@ -1170,19 +1187,19 @@ function getStats() {
   const dates = Object.keys(sessions).sort();
   const total = dates.length;
   const now = new Date();
-  const todayStr = now.toISOString().slice(0,10);
+  const today = todayStr();
   const dayOfWeek = (now.getDay()+6)%7;
-  const weekStart = new Date(now); weekStart.setDate(now.getDate()-dayOfWeek);
-  const weekStartStr = weekStart.toISOString().slice(0,10);
-  const thisWeek  = dates.filter(d => d >= weekStartStr && d <= todayStr).length;
-  const thisMonth = dates.filter(d => d.startsWith(todayStr.slice(0,7))).length;
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dayOfWeek);
+  const weekStartStr = fmtLocal(weekStart);
+  const thisWeek  = dates.filter(d => d >= weekStartStr && d <= today).length;
+  const thisMonth = dates.filter(d => d.startsWith(today.slice(0,7))).length;
   // Streak: consecutive workout days going back (maintain streak if worked out recently)
   const dateSet = new Set(dates);
   let streak = 0;
-  let check = new Date(now);
-  if (!dateSet.has(todayStr)) check.setDate(check.getDate()-1); // don't break streak before day ends
+  let check = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!dateSet.has(today)) check.setDate(check.getDate()-1); // don't break streak before day ends
   while (true) {
-    const s = check.toISOString().slice(0,10);
+    const s = fmtLocal(check);
     if (dateSet.has(s)) { streak++; check.setDate(check.getDate()-1); } else break;
   }
   return {total, thisWeek, thisMonth, streak};
@@ -1193,7 +1210,7 @@ function renderCalendar() {
   const daysInMonth = new Date(calendarYear, calendarMonth+1, 0).getDate();
   const firstDow = new Date(calendarYear, calendarMonth, 1).getDay();
   const firstMon = (firstDow+6)%7; // Mon=0
-  const todayStr = new Date().toISOString().slice(0,10);
+  const calTodayStr = todayStr();
   const monthStr = `${calendarYear}-${String(calendarMonth+1).padStart(2,'0')}`;
   let html = `<div class="calendar-wrap"><div class="calendar-nav"><button class="cal-nav-btn" onclick="shiftCalendar(-1)">&#8249;</button><span class="cal-month-label">${MONTHS_FULL[calendarMonth]} ${calendarYear}</span><button class="cal-nav-btn" onclick="shiftCalendar(1)">&#8250;</button></div><div class="calendar-grid">`;
   ['M','T','W','T','F','S','S'].forEach(d => { html += `<div class="cal-header">${d}</div>`; });
@@ -1202,7 +1219,7 @@ function renderCalendar() {
     const dateStr = `${monthStr}-${String(d).padStart(2,'0')}`;
     const session = sessions[dateStr];
     const hasWork = session && (session.exLogs||[]).length > 0; // empty sessions render as plain
-    const isToday = dateStr === todayStr;
+    const isToday = dateStr === calTodayStr;
     let cls = 'cal-cell';
     if (isToday) cls += ' today';
     if (hasWork) {
@@ -1231,10 +1248,10 @@ function getSessionSummary(session) {
     if (runEntry.reps && /\d/.test(runEntry.reps)) parts.push(runEntry.reps);
     if (runEntry.runDuration) parts.push(runEntry.runDuration + 'min');
     if (runEntry.pace) parts.push(runEntry.pace + '/km');
-    if (parts.length) return parts.join(' · ');
+    if (parts.length) return parts.map(escapeHtml).join(' · ');
   }
   // Otherwise (gym day with no run metrics) → list exercise names
-  return [...new Set(exLogs.map(l => l.name))].join(' · ');
+  return [...new Set(exLogs.map(l => l.name))].map(escapeHtml).join(' · ');
 }
 function shiftCalendar(dir) {
   calendarMonth += dir;
@@ -1265,14 +1282,14 @@ function renderCalendarDayDetail(dateStr) {
       <button class="cal-day-back" onclick="closeCalendarDay()">←</button>
       <div style="flex:1;min-width:0">
         <div class="cal-day-detail-title">${dateLabel}</div>
-        <div class="cal-day-detail-sub">${dayLabel}</div>
+        <div class="cal-day-detail-sub">${escapeHtml(dayLabel)}</div>
       </div>
     </div>`;
 
   // Session notes
   const notesVal = s ? (s.notes || '') : '';
   html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
-    <textarea class="session-notes-input" rows="2" placeholder="Session notes…" oninput="saveCalendarNotes('${dateStr}',this.value)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:13px;padding:8px 10px;resize:none">${notesVal}</textarea>
+    <textarea class="session-notes-input" rows="2" placeholder="Session notes…" oninput="saveCalendarNotes('${dateStr}',this.value)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:13px;padding:8px 10px;resize:none">${escapeHtml(notesVal)}</textarea>
   </div>`;
 
   if (!s || !(s.exLogs||[]).length) {
@@ -1284,19 +1301,19 @@ function renderCalendarDayDetail(dateStr) {
     Object.entries(grouped).forEach(([name, items]) => {
       const safeName = name.replace(/'/g,"\\'");
       const multiSet = items.length > 1;
-      if (multiSet) html += `<div style="padding:8px 14px 2px 46px;font-size:12px;font-weight:600;color:var(--text)">${name}</div>`;
+      if (multiSet) html += `<div style="padding:8px 14px 2px 46px;font-size:12px;font-weight:600;color:var(--text)">${escapeHtml(name)}</div>`;
       items.forEach(({entry, idx}, ei) => {
         const valParts = [];
-        if (entry.reps) valParts.push(entry.reps);
-        if (entry.weight) valParts.push(entry.weight+'kg');
-        if (entry.pace) valParts.push(entry.pace+'/km');
-        if (entry.hr) valParts.push('♥ '+entry.hr);
-        if (entry.cadence) valParts.push(entry.cadence+'spm');
-        if (entry.runDuration) valParts.push(entry.runDuration+'min');
+        if (entry.reps) valParts.push(escapeHtml(entry.reps));
+        if (entry.weight) valParts.push(escapeHtml(entry.weight)+'kg');
+        if (entry.pace) valParts.push(escapeHtml(entry.pace)+'/km');
+        if (entry.hr) valParts.push('♥ '+escapeHtml(entry.hr));
+        if (entry.cadence) valParts.push(escapeHtml(entry.cadence)+'spm');
+        if (entry.runDuration) valParts.push(escapeHtml(entry.runDuration)+'min');
         const tagsHtml = getStatusTagHtml(entry.statusTags||[]);
-        const rpeHtml = entry.rpe ? `<span class="ex-rpe">RPE ${entry.rpe}</span>` : '';
+        const rpeHtml = entry.rpe ? `<span class="ex-rpe">RPE ${escapeHtml(String(entry.rpe))}</span>` : '';
         const setLabel = multiSet ? `<span style="font-size:10px;color:var(--muted);font-weight:600">Set ${ei+1}&nbsp;</span>` : '';
-        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${name}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${rpeHtml}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${idx},${safeDayIdx},'${dateStr}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${dateStr}',${idx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
+        html += `<div class="exercise-row">${!multiSet?`<div class="exercise-check checked" style="cursor:default"></div>`:'<div style="width:22px;flex-shrink:0"></div>'}<div class="exercise-info">${!multiSet?`<div class="exercise-name">${escapeHtml(name)}</div>`:''}<div class="exercise-details">${setLabel}<span class="ex-vol">${valParts.join(' · ')||'—'}</span>${rpeHtml}${tagsHtml}</div></div><button class="log-btn has-log" onclick="openEditModal('${safeName}',${idx},${safeDayIdx},'${dateStr}')" style="font-size:10px">EDIT</button><button onclick="event.stopPropagation();deleteLoggedEntry('${dateStr}',${idx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0" title="Delete entry">×</button></div>`;
       });
     });
     html += `</div>`;
@@ -1319,15 +1336,15 @@ function saveCalendarNotes(dateStr, val) {
 // PROGRESS — HISTORY
 function getFilteredDates() {
   const now = new Date();
-  const todayStr = now.toISOString().slice(0,10);
+  const today = todayStr();
   const all = Object.keys(sessions).sort().reverse();
   if (historyFilter === 'all') return all;
   if (historyFilter === 'year') return all.filter(d => d.startsWith(String(now.getFullYear())));
-  if (historyFilter === 'month') return all.filter(d => d.startsWith(todayStr.slice(0,7)));
+  if (historyFilter === 'month') return all.filter(d => d.startsWith(today.slice(0,7)));
   if (historyFilter === 'week') {
     const dow = (now.getDay()+6)%7;
-    const ws = new Date(now); ws.setDate(now.getDate()-dow);
-    return all.filter(d => d >= ws.toISOString().slice(0,10) && d <= todayStr);
+    const ws = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow);
+    return all.filter(d => d >= fmtLocal(ws) && d <= today);
   }
   return all;
 }
@@ -1356,21 +1373,21 @@ function renderHistory() {
     });
     const exCount = Object.keys(grouped).length;
     const typeTag = s.dayType ? `<span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:capitalize"> · ${s.dayType}</span>` : '';
-    html += `<div class="session-card"><div class="session-header" onclick="toggleSession('sess-${i}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${s.dayName}${typeTag}</div></div><div class="session-count">${exCount} ex</div></div><div class="session-body" id="sess-${i}">`;
-    if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04)">${s.notes}</div>`;
+    html += `<div class="session-card"><div class="session-header" onclick="toggleSession('sess-${i}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${escapeHtml(s.dayName)}${typeTag}</div></div><div class="session-count">${exCount} ex</div></div><div class="session-body" id="sess-${i}">`;
+    if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04)">${escapeHtml(s.notes)}</div>`;
     Object.entries(grouped).forEach(([name, entries]) => {
       entries.forEach((ex, ei) => {
         const valParts = [];
-        if (ex.reps) valParts.push(ex.reps);
-        if (ex.weight) valParts.push(ex.weight+'kg');
-        if (ex.pace) valParts.push(ex.pace+'/km');
-        if (ex.hr) valParts.push('♥ '+ex.hr);
-        if (ex.cadence) valParts.push(ex.cadence+'spm');
-        if (ex.runDuration) valParts.push(ex.runDuration+'min');
-        const rpeHtml = ex.rpe ? `<span class="session-ex-rpe">RPE ${ex.rpe}</span>` : '';
+        if (ex.reps) valParts.push(escapeHtml(ex.reps));
+        if (ex.weight) valParts.push(escapeHtml(ex.weight)+'kg');
+        if (ex.pace) valParts.push(escapeHtml(ex.pace)+'/km');
+        if (ex.hr) valParts.push('♥ '+escapeHtml(ex.hr));
+        if (ex.cadence) valParts.push(escapeHtml(ex.cadence)+'spm');
+        if (ex.runDuration) valParts.push(escapeHtml(ex.runDuration)+'min');
+        const rpeHtml = ex.rpe ? `<span class="session-ex-rpe">RPE ${escapeHtml(String(ex.rpe))}</span>` : '';
         const tagsHtml = getStatusTagHtml(ex.statusTags||[]);
         const dropLabel = entries.length > 1 ? `<span style="font-size:10px;color:var(--muted)"> #${ei+1}</span>` : '';
-        html += `<div class="session-ex-row"><span class="session-ex-name">${name}${dropLabel} ${tagsHtml}</span><span>${rpeHtml}<span class="session-ex-val">${valParts.join(' · ')||'—'}</span></span></div>`;
+        html += `<div class="session-ex-row"><span class="session-ex-name">${escapeHtml(name)}${dropLabel} ${tagsHtml}</span><span>${rpeHtml}<span class="session-ex-val">${valParts.join(' · ')||'—'}</span></span></div>`;
       });
     });
     html += `</div></div>`;
@@ -1418,15 +1435,15 @@ function renderProgress() {
     if (progressExIdx >= exNames.length) progressExIdx = 0;
     html += `<div class="section-label" style="margin-top:24px">Exercise Progress</div>`;
     html += `<div class="exercise-select-scroll">`;
-    exNames.forEach((name,i) => { html += `<button class="ex-pill ${i===progressExIdx?'active':''}" onclick="selectProgressEx(${i})">${name}</button>`; });
+    exNames.forEach((name,i) => { html += `<button class="ex-pill ${i===progressExIdx?'active':''}" onclick="selectProgressEx(${i})">${escapeHtml(name)}</button>`; });
     html += `</div>`;
     const name = exNames[progressExIdx];
     const exLogs = logs[name] || [];
-    html += `<div class="chart-container"><div class="chart-title">Weight over time — ${name}</div><div class="chart-canvas-wrap"><canvas id="progress-chart"></canvas></div></div>`;
+    html += `<div class="chart-container"><div class="chart-title">Weight over time — ${escapeHtml(name)}</div><div class="chart-canvas-wrap"><canvas id="progress-chart"></canvas></div></div>`;
     html += `<div class="log-history">`;
     [...exLogs].reverse().forEach(entry => {
       const display = [entry.weight?entry.weight+'kg':'', entry.reps].filter(Boolean).join(' · ');
-      html += `<div class="log-entry"><div><div class="log-date">${entry.date}</div>${entry.rpe?`<div class="log-rpe">RPE ${entry.rpe}</div>`:''} ${entry.notes?`<div class="log-rpe" style="color:var(--muted)">${entry.notes}</div>`:''}</div><div class="log-values">${display||'—'}</div></div>`;
+      html += `<div class="log-entry"><div><div class="log-date">${escapeHtml(entry.date)}</div>${entry.rpe?`<div class="log-rpe">RPE ${escapeHtml(String(entry.rpe))}</div>`:''} ${entry.notes?`<div class="log-rpe" style="color:var(--muted)">${escapeHtml(entry.notes)}</div>`:''}</div><div class="log-values">${escapeHtml(display)||'—'}</div></div>`;
     });
     html += `</div>`;
   }
@@ -1478,7 +1495,7 @@ function drawChart(name, exLogs) {
 function renderGoals() {
   const list = document.getElementById('goals-list');
   if (goals.length===0) { list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🎯</div><div class="empty-state-text">No goals yet</div><div class="empty-state-sub">Add milestones above</div></div>`; return; }
-  list.innerHTML = goals.map((g,i)=>`<div class="goal-card"><div class="goal-check ${g.done?'done':''}" onclick="toggleGoal(${i})"></div><div class="goal-text"><div class="goal-name ${g.done?'done-text':''}">${g.text}</div>${g.deadline?`<div class="goal-deadline">Target: ${g.deadline}</div>`:''}</div><button class="goal-delete" onclick="deleteGoal(${i})">×</button></div>`).join('');
+  list.innerHTML = goals.map((g,i)=>`<div class="goal-card"><div class="goal-check ${g.done?'done':''}" onclick="toggleGoal(${i})"></div><div class="goal-text"><div class="goal-name ${g.done?'done-text':''}">${escapeHtml(g.text)}</div>${g.deadline?`<div class="goal-deadline">Target: ${escapeHtml(g.deadline)}</div>`:''}</div><button class="goal-delete" onclick="deleteGoal(${i})">×</button></div>`).join('');
 }
 function addGoal() {
   const text = document.getElementById('goal-input').value.trim();
@@ -1515,19 +1532,55 @@ function exportData() {
 }
 function importData(event) {
   const file = event.target.files[0]; if (!file) return;
+  const status = document.getElementById('backup-status');
+  // Size guard — reject files over 5 MB (legit backups are typically <200 KB)
+  if (file.size > 5 * 1024 * 1024) {
+    status.textContent = 'File too large (max 5 MB). Not a valid backup.';
+    status.className = 'parse-status error';
+    event.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = async (e) => {
-    const status = document.getElementById('backup-status');
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.program || !data.logs) { status.textContent='Invalid backup file.'; status.className='parse-status error'; return; }
-      program = data.program||[]; checks = data.checks||{}; logs = data.logs||{}; goals = data.goals||[]; sessions = data.sessions||{}; programWeek = data.programWeek||null;
+
+      // Shape validation — must have at least program and logs, both the right type
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        status.textContent = 'Invalid backup file: unexpected structure.'; status.className = 'parse-status error'; return;
+      }
+      if (!Array.isArray(data.program)) {
+        status.textContent = 'Invalid backup file: program must be an array.'; status.className = 'parse-status error'; return;
+      }
+      if (typeof data.logs !== 'object' || Array.isArray(data.logs)) {
+        status.textContent = 'Invalid backup file: logs must be an object.'; status.className = 'parse-status error'; return;
+      }
+      if (data.sessions !== undefined && (typeof data.sessions !== 'object' || Array.isArray(data.sessions))) {
+        status.textContent = 'Invalid backup file: sessions must be an object.'; status.className = 'parse-status error'; return;
+      }
+      if (data.goals !== undefined && !Array.isArray(data.goals)) {
+        status.textContent = 'Invalid backup file: goals must be an array.'; status.className = 'parse-status error'; return;
+      }
+
+      // Confirm before overwriting — only prompt when there is existing data to lose
+      const existingSessionCount = Object.keys(sessions).length;
+      if (existingSessionCount > 0) {
+        const from = data.exportedAt ? data.exportedAt.slice(0, 10) : 'unknown date';
+        if (!confirm(`This will replace your ${existingSessionCount} existing session(s) with the backup from ${from}. Continue?`)) {
+          event.target.value = ''; return;
+        }
+      }
+
+      program = data.program || []; checks = data.checks || {}; logs = data.logs || {};
+      goals = Array.isArray(data.goals) ? data.goals : [];
+      sessions = (data.sessions && typeof data.sessions === 'object') ? data.sessions : {};
+      programWeek = data.programWeek || null;
       migrateProgramToWeekdays(); checkNewWeek();
       await saveAll(); renderToday(); renderGoals(); renderProgress();
-      status.textContent = `Restored from ${data.exportedAt ? data.exportedAt.slice(0,10) : 'backup'}`; status.className = 'parse-status';
-    } catch(err) { status.textContent='Failed to parse backup file.'; status.className='parse-status error'; }
+      status.textContent = `Restored from ${data.exportedAt ? data.exportedAt.slice(0, 10) : 'backup'}`; status.className = 'parse-status';
+    } catch(err) { status.textContent = 'Failed to parse backup file — is it a valid JSON export?'; status.className = 'parse-status error'; }
   };
-  reader.readAsText(file); event.target.value='';
+  reader.readAsText(file); event.target.value = '';
 }
 
 // COPY MENU PROMPT — gives the user a ChatGPT-ready prompt + template
@@ -1577,7 +1630,7 @@ function renderExportSelector() {
     html += `<div class="export-session-row ${checked?'selected':''}" onclick="exportToggleDate('${dateStr}')">
       <div class="export-cb ${checked?'checked':''}"></div>
       <div class="export-session-date">${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}</div>
-      <div class="export-session-name">${s.dayName}</div>
+      <div class="export-session-name">${escapeHtml(s.dayName)}</div>
       <div class="export-session-count">${exCount} ex</div>
     </div>`;
   });
@@ -1596,8 +1649,9 @@ function exportToggleDate(dateStr) {
 }
 function exportSelectRange(days) {
   exportSelectedDates.clear();
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
-  const cutoffStr = cutoff.toISOString().slice(0,10);
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+  const cutoffStr = fmtLocal(cutoff);
   Object.keys(sessions).forEach(d => { if (d >= cutoffStr) exportSelectedDates.add(d); });
   renderExportSelector();
 }
@@ -1613,7 +1667,7 @@ function exportSelectNone() {
 function exportForChatGPT() {
   const selected = [...exportSelectedDates].sort().reverse();
   if (selected.length === 0) return;
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayStr();
   let text = `WORKOUT EXPORT — ${selected.length} session${selected.length!==1?'s':''}
 `;
   text += `Generated: ${today}
@@ -1673,15 +1727,16 @@ ${name}:
     });
   }
 
-  if (program.length > 0) {
+  if (program.some(d => d.exercises && d.exercises.length)) {
     text += `
 ${'═'.repeat(48)}
 CURRENT PROGRAM
 ${'═'.repeat(48)}
 `;
     program.forEach(day => {
+      if (!day.exercises || day.exercises.length === 0) return; // skip empty rest days
       text += `
-DAY: ${day.name}${day.type?' | '+day.type:''}${day.duration?' | '+day.duration:''}
+DAY: ${dayDisplayName(day)}${day.type?' | '+day.type:''}${day.duration?' | '+day.duration:''}
 `;
       day.exercises.forEach(ex => {
         const parts = [ex.name, ex.volume, ex.weight, ...ex.tags].filter(Boolean);
