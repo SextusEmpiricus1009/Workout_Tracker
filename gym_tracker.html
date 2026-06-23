@@ -21,6 +21,43 @@
     --muted: #666;
     --green: #6ddc9a;
   }
+  [data-theme="light"] {
+    --bg: #f0f0f2;
+    --surface: #ffffff;
+    --surface2: #e8e8ec;
+    --border: #d0d0d6;
+    --text: #1a1a1a;
+    --muted: #888;
+  }
+  /* Light mode: subtle black outline on all text */
+  [data-theme="light"] body {
+    -webkit-text-stroke: 0.4px rgba(0,0,0,0.5);
+  }
+  /* Light mode: thicker outline for header-level text */
+  [data-theme="light"] .screen-title,
+  [data-theme="light"] .cal-month-label,
+  [data-theme="light"] .day-name,
+  [data-theme="light"] .modal-title {
+    -webkit-text-stroke: 1px rgba(0,0,0,0.5);
+  }
+  /* Light mode: calendar cells as bordered boxes */
+  [data-theme="light"] .cal-cell {
+    border: 1px solid var(--border);
+    color: #111;
+  }
+  /* Light mode: force all calendar text to black */
+  [data-theme="light"] .cal-cell.type-strength,
+  [data-theme="light"] .cal-cell.type-aerobic,
+  [data-theme="light"] .cal-cell.type-hybrid,
+  [data-theme="light"] .cal-cell.type-recovery,
+  [data-theme="light"] .cal-cell.type-other,
+  [data-theme="light"] .cal-cell.type-race-day,
+  [data-theme="light"] .cal-cell.type-ball-game { color: #111; }
+  [data-theme="light"] .cal-header { color: #111; }
+  [data-theme="light"] .cal-month-label { color: #111; }
+  [data-theme="light"] .cal-nav-btn { color: #111; }
+  [data-theme="light"] .cal-summary { color: #111; }
+  [data-theme="light"] .cal-day-num { color: #111; }
   body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; min-height: 100vh; overflow-x: hidden; }
 
   .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; }
@@ -45,6 +82,8 @@
   .day-type-badge.aerobic { background: rgba(58,139,92,0.2); color: var(--green); }
   .day-type-badge.hybrid { background: rgba(255,107,53,0.15); color: #ff9f6b; }
   .day-type-badge.recovery { background: rgba(58,122,139,0.2); color: #6dbcdc; }
+  .day-type-badge.race-day { background: rgba(255,80,80,0.18); color: #ff7070; }
+  .day-type-badge.ball-game { background: rgba(180,100,220,0.18); color: #c47adc; }
   .day-duration { font-size: 11px; color: var(--muted); }
   .day-progress { font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; color: var(--accent); }
   .day-progress.done { color: var(--green); }
@@ -183,6 +222,8 @@
   .cal-cell.type-hybrid { background: rgba(255,107,53,0.2); color: #ff9f6b; }
   .cal-cell.type-recovery { background: rgba(58,122,139,0.25); color: #6dbcdc; }
   .cal-cell.type-other { background: rgba(232,255,71,0.1); color: var(--accent); }
+  .cal-cell.type-race-day { background: rgba(255,80,80,0.22); color: #ff7070; }
+  .cal-cell.type-ball-game { background: rgba(180,100,220,0.22); color: #c47adc; }
   .cal-day-num { font-size: 11px; font-weight: 600; line-height: 1.2; }
   .cal-summary { font-size: 8px; line-height: 1.3; text-align: center; opacity: 0.9; word-break: break-all; padding: 0 1px; }
   .cal-day-detail { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
@@ -272,9 +313,12 @@
 </div>
 
 <div id="screen-today" class="screen active">
-  <div class="screen-header">
-    <div class="screen-title">Today</div>
-    <div class="screen-sub" id="today-date"></div>
+  <div class="screen-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+    <div>
+      <div class="screen-title">Today</div>
+      <div class="screen-sub" id="today-date"></div>
+    </div>
+    <button onclick="toggleTheme()" id="theme-toggle-btn" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px 0;line-height:1;color:var(--muted)" title="Toggle light/dark mode">☀️</button>
   </div>
   <div id="week-strip" class="week-strip"></div>
   <div id="session-notes-area"></div>
@@ -479,6 +523,89 @@ Now produce my plan in this exact format.</textarea>
   </div>
 </div>
 
+<div class="modal-overlay" id="race-modal">
+  <div class="modal">
+    <div class="modal-title">Log Race Day</div>
+    <div class="modal-sub" id="race-modal-date"></div>
+    <div class="modal-field">
+      <label class="modal-label" for="race-event-name">Event name</label>
+      <input class="modal-input" id="race-event-name" placeholder="e.g. Bukit Timah 10K" aria-label="Event name">
+    </div>
+    <div class="run-metrics-grid" style="margin-bottom:14px">
+      <div>
+        <div class="run-metric-label">Distance</div>
+        <input class="modal-input" id="race-distance" placeholder="e.g. 10km" aria-label="Distance">
+      </div>
+      <div>
+        <div class="run-metric-label">Pace (min/km)</div>
+        <input class="modal-input" id="race-pace" placeholder="e.g. 5:30" aria-label="Pace">
+      </div>
+      <div>
+        <div class="run-metric-label">Cadence (spm)</div>
+        <input class="modal-input" id="race-cadence" type="number" placeholder="e.g. 170" aria-label="Cadence">
+      </div>
+      <div>
+        <div class="run-metric-label">Duration (min)</div>
+        <input class="modal-input" id="race-duration" type="number" placeholder="e.g. 55" aria-label="Duration">
+      </div>
+      <div style="grid-column:span 2">
+        <div class="run-metric-label">Avg HR (bpm)</div>
+        <input class="modal-input" id="race-hr" type="number" placeholder="e.g. 168" aria-label="Average heart rate">
+      </div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label" for="race-notes">Notes</label>
+      <input class="modal-input" id="race-notes" placeholder="e.g. felt strong, PB attempt" aria-label="Notes">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeRaceModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveRaceDay()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ballgame-modal">
+  <div class="modal">
+    <div class="modal-title">Log Ball Game</div>
+    <div class="modal-sub" id="ballgame-modal-date"></div>
+    <div class="modal-field">
+      <label class="modal-label" for="ballgame-sport">Sport</label>
+      <input class="modal-input" id="ballgame-sport" placeholder="e.g. Basketball, Football, Tennis" aria-label="Sport">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Session type</label>
+      <div class="type-pill-grid" id="ballgame-type-grid">
+        <button class="type-pill" id="bg-type-casual" onclick="selectBallGameType('casual')">Casual</button>
+        <button class="type-pill" id="bg-type-practice" onclick="selectBallGameType('practice')">Practice</button>
+        <button class="type-pill" id="bg-type-p2" onclick="selectBallGameType('p2')">P2</button>
+        <button class="type-pill" id="bg-type-competition" onclick="selectBallGameType('competition')">Competition</button>
+      </div>
+    </div>
+    <div class="run-metrics-grid" style="margin-bottom:14px">
+      <div>
+        <div class="run-metric-label">Duration (min)</div>
+        <input class="modal-input" id="ballgame-duration" type="number" placeholder="e.g. 60" aria-label="Duration">
+      </div>
+      <div>
+        <div class="run-metric-label">Avg HR (bpm)</div>
+        <input class="modal-input" id="ballgame-hr" type="number" placeholder="e.g. 145" aria-label="Average heart rate">
+      </div>
+    </div>
+    <div class="modal-field" id="ballgame-result-field" style="display:none">
+      <label class="modal-label" for="ballgame-result">Result</label>
+      <input class="modal-input" id="ballgame-result" placeholder="e.g. Won 21-18 vs John's team" aria-label="Result">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label" for="ballgame-notes">Notes</label>
+      <input class="modal-input" id="ballgame-notes" placeholder="e.g. good movement, need to work on defence" aria-label="Notes">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeBallGameModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveBallGame()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // FIREBASE
 const firebaseConfig = {
@@ -501,6 +628,53 @@ function signOutUser() { auth.signOut(); }
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// THEME
+function initTheme() {
+  const saved = localStorage.getItem('sextus_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = saved === 'light' ? '🌙' : '☀️';
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('sextus_theme', next);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = next === 'light' ? '🌙' : '☀️';
+}
+
+// SESSION ARRAY HELPERS
+// Returns sessions[dateStr] always as an array, handles legacy single-object format
+function getSessionsForDate(dateStr) {
+  const s = sessions[dateStr];
+  if (!s) return [];
+  if (Array.isArray(s)) return s;
+  return [s]; // legacy compat
+}
+// Returns the workout-type entry for a date (used by Today screen)
+function getWorkoutSession(dateStr) {
+  const arr = getSessionsForDate(dateStr);
+  return arr.find(e => !e.entryType || e.entryType === 'workout') || null;
+}
+// Ensures sessions[dateStr] is an array and returns it
+function ensureSessionArray(dateStr) {
+  if (!sessions[dateStr]) { sessions[dateStr] = []; return sessions[dateStr]; }
+  if (!Array.isArray(sessions[dateStr])) { sessions[dateStr] = [sessions[dateStr]]; }
+  return sessions[dateStr];
+}
+// Returns or creates the workout entry within a date's session array
+function ensureWorkoutSession(dateStr) {
+  const arr = ensureSessionArray(dateStr);
+  let ws = arr.find(e => !e.entryType || e.entryType === 'workout');
+  if (!ws) {
+    const meta = dayMetaForDate(dateStr);
+    ws = { entryType: 'workout', dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' };
+    arr.push(ws);
+  }
+  return ws;
 }
 
 // STATE
@@ -656,6 +830,7 @@ async function loadAll() {
     } catch(e) { console.warn('Firebase load failed:', e.code || e.message); }
   }
   migrateProgramToWeekdays();
+  migrateSessionsToArray();
   migrateSessionDayIdx();
 }
 // One-time migration: convert old arbitrary-day program into a fixed 7-slot Mon–Sun week
@@ -694,13 +869,28 @@ function checkNewWeek() {
     saveAll();
   }
 }
+// One-time migration: wrap legacy single-object sessions in arrays and tag entryType
+function migrateSessionsToArray() {
+  let changed = false;
+  Object.keys(sessions).forEach(dateStr => {
+    if (!Array.isArray(sessions[dateStr])) {
+      const s = sessions[dateStr];
+      if (!s.entryType) s.entryType = 'workout';
+      sessions[dateStr] = [s];
+      changed = true;
+    }
+  });
+  if (changed) saveAll();
+}
 // Backfill dayIdx on old exLog entries; derive from the log's own date (deterministic)
 function migrateSessionDayIdx() {
   let changed = false;
   Object.keys(sessions).forEach(dateStr => {
     const idx = weekdayIdx(dateStr);
-    (sessions[dateStr].exLogs || []).forEach(l => {
-      if (l.dayIdx === undefined) { l.dayIdx = idx; changed = true; }
+    getSessionsForDate(dateStr).forEach(s => {
+      (s.exLogs || []).forEach(l => {
+        if (l.dayIdx === undefined) { l.dayIdx = idx; changed = true; }
+      });
     });
   });
   if (changed) saveAll();
@@ -836,8 +1026,161 @@ function saveNewDay() {
   program[editingDayIdx].type = selectedDayType;
   program[editingDayIdx].duration = duration;
   save('program', program);
+
+  // Patch the dayName/dayType on any existing workout session for this slot in the current week,
+  // so the calendar day detail reflects the rename immediately without requiring a re-log.
+  const slotDate = dateForWeekday(editingDayIdx);
+  const ws = getWorkoutSession(slotDate);
+  if (ws) {
+    const meta = dayMetaForDate(slotDate); // reads from the program we just updated
+    ws.dayName = meta.name;
+    ws.dayType = meta.type;
+    save('sessions', sessions);
+  }
+
   closeAddDayModal();
   renderToday();
+  renderProgress();
+}
+
+// RACE DAY
+let raceDateStr = null;
+let raceEditIdx = null; // array index within sessions[raceDateStr] when editing
+function openRaceDayModal(dateStr) {
+  raceDateStr = dateStr;
+  raceEditIdx = null;
+  const d = new Date(dateStr+'T12:00:00');
+  document.getElementById('race-modal-date').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('race-event-name').value = '';
+  document.getElementById('race-distance').value = '';
+  document.getElementById('race-pace').value = '';
+  document.getElementById('race-cadence').value = '';
+  document.getElementById('race-duration').value = '';
+  document.getElementById('race-hr').value = '';
+  document.getElementById('race-notes').value = '';
+  document.getElementById('race-modal').classList.add('open');
+  setTimeout(() => document.getElementById('race-event-name').focus(), 100);
+}
+function openEditRaceDayModal(dateStr, arrIdx) {
+  const entry = (sessions[dateStr] || [])[arrIdx];
+  if (!entry) return;
+  raceDateStr = dateStr;
+  raceEditIdx = arrIdx;
+  const d = new Date(dateStr+'T12:00:00');
+  document.getElementById('race-modal-date').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('race-event-name').value = entry.dayName || '';
+  document.getElementById('race-distance').value = entry.distance || '';
+  document.getElementById('race-pace').value = entry.pace || '';
+  document.getElementById('race-cadence').value = entry.cadence || '';
+  document.getElementById('race-duration').value = entry.duration || '';
+  document.getElementById('race-hr').value = entry.hr || '';
+  document.getElementById('race-notes').value = entry.notes || '';
+  document.getElementById('race-modal').classList.add('open');
+  setTimeout(() => document.getElementById('race-event-name').focus(), 100);
+}
+function closeRaceModal() {
+  document.getElementById('race-modal').classList.remove('open');
+  raceDateStr = null;
+  raceEditIdx = null;
+}
+function saveRaceDay() {
+  const eventName = document.getElementById('race-event-name').value.trim();
+  if (!eventName) { document.getElementById('race-event-name').focus(); return; }
+  const entry = {
+    entryType: 'raceDay',
+    dayName: eventName,
+    dayType: 'Race Day',
+    distance: document.getElementById('race-distance').value.trim(),
+    pace: document.getElementById('race-pace').value.trim(),
+    cadence: document.getElementById('race-cadence').value.trim(),
+    duration: document.getElementById('race-duration').value.trim(),
+    hr: document.getElementById('race-hr').value.trim(),
+    notes: document.getElementById('race-notes').value.trim()
+  };
+  const arr = ensureSessionArray(raceDateStr);
+  if (raceEditIdx !== null) {
+    arr[raceEditIdx] = entry; // update in place
+  } else {
+    arr.push(entry);
+  }
+  saveAll();
+  closeRaceModal();
+  renderProgress();
+  if (raceDateStr === dateForSelectedDay()) renderToday();
+}
+
+// BALL GAME
+let ballGameDateStr = null;
+let ballGameEditIdx = null; // array index within sessions[ballGameDateStr] when editing
+let selectedBallGameType = 'casual';
+function selectBallGameType(type) {
+  selectedBallGameType = type;
+  ['casual','practice','p2','competition'].forEach(t => {
+    const btn = document.getElementById('bg-type-'+t);
+    if (btn) btn.className = 'type-pill' + (t === type ? ' sel-other' : '');
+  });
+  document.getElementById('ballgame-result-field').style.display = (type === 'competition' || type === 'p2') ? '' : 'none';
+}
+function openBallGameModal(dateStr) {
+  ballGameDateStr = dateStr;
+  ballGameEditIdx = null;
+  selectedBallGameType = 'casual';
+  const d = new Date(dateStr+'T12:00:00');
+  document.getElementById('ballgame-modal-date').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('ballgame-sport').value = '';
+  document.getElementById('ballgame-duration').value = '';
+  document.getElementById('ballgame-hr').value = '';
+  document.getElementById('ballgame-result').value = '';
+  document.getElementById('ballgame-notes').value = '';
+  selectBallGameType('casual');
+  document.getElementById('ballgame-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ballgame-sport').focus(), 100);
+}
+function openEditBallGameModal(dateStr, arrIdx) {
+  const entry = (sessions[dateStr] || [])[arrIdx];
+  if (!entry) return;
+  ballGameDateStr = dateStr;
+  ballGameEditIdx = arrIdx;
+  const d = new Date(dateStr+'T12:00:00');
+  document.getElementById('ballgame-modal-date').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('ballgame-sport').value = entry.dayName || '';
+  document.getElementById('ballgame-duration').value = entry.duration || '';
+  document.getElementById('ballgame-hr').value = entry.hr || '';
+  document.getElementById('ballgame-result').value = entry.result || '';
+  document.getElementById('ballgame-notes').value = entry.notes || '';
+  selectBallGameType(entry.sessionType || 'casual');
+  document.getElementById('ballgame-modal').classList.add('open');
+  setTimeout(() => document.getElementById('ballgame-sport').focus(), 100);
+}
+function closeBallGameModal() {
+  document.getElementById('ballgame-modal').classList.remove('open');
+  ballGameDateStr = null;
+  ballGameEditIdx = null;
+}
+function saveBallGame() {
+  const sport = document.getElementById('ballgame-sport').value.trim();
+  if (!sport) { document.getElementById('ballgame-sport').focus(); return; }
+  const hasResult = selectedBallGameType === 'competition' || selectedBallGameType === 'p2';
+  const entry = {
+    entryType: 'ballGame',
+    dayName: sport,
+    dayType: 'Ball Game',
+    sessionType: selectedBallGameType,
+    duration: document.getElementById('ballgame-duration').value.trim(),
+    hr: document.getElementById('ballgame-hr').value.trim(),
+    result: hasResult ? document.getElementById('ballgame-result').value.trim() : '',
+    notes: document.getElementById('ballgame-notes').value.trim()
+  };
+  const arr = ensureSessionArray(ballGameDateStr);
+  if (ballGameEditIdx !== null) {
+    arr[ballGameEditIdx] = entry; // update in place
+  } else {
+    arr.push(entry);
+  }
+  saveAll();
+  closeBallGameModal();
+  renderProgress();
+  if (ballGameDateStr === dateForSelectedDay()) renderToday();
 }
 function renderToday() {
   renderTodayDate(); renderWeekStrip(); renderSessionNotes();
@@ -848,7 +1191,8 @@ function renderToday() {
   const done = day.exercises.filter((_,i)=>checks[`${dayKey}_${i}`]).length;
   const logDate = dateForSelectedDay();              // date this weekday maps to in the current week
   const dispName = dayDisplayName(day);
-  const allTodayExLogs = sessions[logDate] ? sessions[logDate].exLogs : []; // a date belongs to exactly one weekday
+  const ws = getWorkoutSession(logDate);
+  const allTodayExLogs = ws ? (ws.exLogs || []) : [];
   const todayExLogs = allTodayExLogs;
 
   let html = '';
@@ -903,6 +1247,10 @@ function renderToday() {
 
   html += `<button class="custom-ex-btn" onclick="openCustomModal(${selectedDay},'${logDate}')"><span style="font-size:16px;line-height:1">＋</span> Custom exercise</button>`;
   html += `</div></div>`;
+  html += `<div style="display:flex;gap:8px;margin-top:8px">`;
+  html += `<button class="custom-ex-btn" style="flex:1;border:1px dashed rgba(255,80,80,0.4);color:#ff7070" onclick="openRaceDayModal('${logDate}')"><span style="font-size:14px;line-height:1">🏁</span> Log Race Day</button>`;
+  html += `<button class="custom-ex-btn" style="flex:1;border:1px dashed rgba(180,100,220,0.4);color:#c47adc" onclick="openBallGameModal('${logDate}')"><span style="font-size:14px;line-height:1">🏀</span> Log Ball Game</button>`;
+  html += `</div>`;
   content.innerHTML = html;
 }
 function deletePlannedExercise(dayIdx, exIdx) {
@@ -914,23 +1262,38 @@ function deletePlannedExercise(dayIdx, exIdx) {
   renderToday();
 }
 function deleteLoggedEntry(dateStr, sessionIdx) {
-  const s = sessions[dateStr];
-  if (!s || !s.exLogs[sessionIdx]) return;
+  const ws = getWorkoutSession(dateStr);
+  if (!ws || !ws.exLogs[sessionIdx]) return;
   if (!confirm('Delete this logged entry?')) return;
-  const removed = s.exLogs[sessionIdx];
-  s.exLogs.splice(sessionIdx, 1);
+  const removed = ws.exLogs[sessionIdx];
+  ws.exLogs.splice(sessionIdx, 1);
   // remove the matching progression entry in logs[]
   const arr = logs[removed.name] || [];
   const li = arr.findIndex(e => e.date === dateStr && (e.weight||'') === (removed.weight||'') && (e.reps||'') === (removed.reps||'') && (e.rpe||'') === (removed.rpe||''));
   if (li >= 0) arr.splice(li, 1);
   if (arr.length === 0) delete logs[removed.name]; else logs[removed.name] = arr;
-  // If the day is now empty (no exercises and no notes), remove the session so the calendar reverts to plain
-  if (s.exLogs.length === 0 && !(s.notes && s.notes.trim())) {
-    delete sessions[dateStr];
-    if (selectedCalendarDate === dateStr) selectedCalendarDate = null;
+  // If workout entry is empty, remove it from the array
+  if (ws.exLogs.length === 0 && !(ws.notes && ws.notes.trim())) {
+    const sessionArr = sessions[dateStr];
+    const idx = sessionArr.findIndex(e => !e.entryType || e.entryType === 'workout');
+    if (idx >= 0) sessionArr.splice(idx, 1);
+    if (sessionArr.length === 0) {
+      delete sessions[dateStr];
+      if (selectedCalendarDate === dateStr) selectedCalendarDate = null;
+    }
   }
   saveAll();
   if (dateStr === dateForSelectedDay()) renderToday();
+  renderProgress();
+}
+// Delete a race day or ball game entry by its index in the sessions array
+function deleteAltEntry(dateStr, arrIdx) {
+  if (!confirm('Delete this entry?')) return;
+  const arr = sessions[dateStr];
+  if (!arr || !Array.isArray(arr)) return;
+  arr.splice(arrIdx, 1);
+  if (arr.length === 0) delete sessions[dateStr];
+  saveAll();
   renderProgress();
 }
 function toggleDay(id) { const el=document.getElementById(id); if(el) el.classList.toggle('open'); }
@@ -982,15 +1345,35 @@ function renderSessionNotes() {
   const area = document.getElementById('session-notes-area');
   if (!area) return;
   const today = dateForSelectedDay();
-  const existing = sessions[today] ? (sessions[today].notes || '') : '';
+  const ws = getWorkoutSession(today);
+  const existing = ws ? (ws.notes || '') : '';
   area.innerHTML = `<div class="session-notes-wrap"><div class="session-notes-label">Session notes</div><textarea class="session-notes-input" id="session-notes-input" rows="2" placeholder="Energy, soreness, recovery…" oninput="saveSessionNotes()">${escapeHtml(existing)}</textarea></div>`;
 }
 function saveSessionNotes() {
   const val = document.getElementById('session-notes-input');
   if (!val) return;
   const today = dateForSelectedDay();
-  if (!sessions[today]) { const meta = dayMetaForDate(today); sessions[today] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' }; }
-  sessions[today].notes = val.value;
+  const trimmed = val.value;
+  const ws = getWorkoutSession(today);
+  if (!trimmed && (!ws || !(ws.exLogs||[]).length)) {
+    // Nothing to save — remove workout entry if it exists and array is otherwise empty
+    if (sessions[today]) {
+      const arr = ensureSessionArray(today);
+      const idx = arr.findIndex(e => !e.entryType || e.entryType === 'workout');
+      if (idx >= 0) arr.splice(idx, 1);
+      if (arr.length === 0) delete sessions[today];
+      save('sessions', sessions);
+    }
+    return;
+  }
+  const w = ensureWorkoutSession(today);
+  w.notes = trimmed;
+  if (!trimmed && !(w.exLogs||[]).length) {
+    const arr = sessions[today];
+    const idx = arr.findIndex(e => !e.entryType || e.entryType === 'workout');
+    if (idx >= 0) arr.splice(idx, 1);
+    if (arr.length === 0) delete sessions[today];
+  }
   save('sessions', sessions);
 }
 
@@ -1108,8 +1491,8 @@ function toggleRunSection() {
 }
 function openEditModal(name, sessionIdx, dayIdx, dateOverride) {
   activeLogDate = dateOverride || todayStr();
-  const todayStr = activeLogDate;
-  const entry = sessions[todayStr]?.exLogs[sessionIdx];
+  const ws = getWorkoutSession(activeLogDate);
+  const entry = ws?.exLogs[sessionIdx];
   if (!entry) return;
   selectedEx = { dayIdx, exIdx: -1, exName: name, isCustom: true, editSessionIdx: sessionIdx, _oldEntry: entry };
   selectedRPE = entry.rpe ? parseInt(entry.rpe) : null;
@@ -1159,7 +1542,8 @@ function saveLog() {
 
   if (selectedEx.editSessionIdx !== undefined) {
     // Edit mode — update in place
-    if (sessions[today]) sessions[today].exLogs[selectedEx.editSessionIdx] = entry;
+    const ws = getWorkoutSession(today);
+    if (ws) ws.exLogs[selectedEx.editSessionIdx] = entry;
     // Also update logs[] — find matching entry by old values
     const old = selectedEx._oldEntry;
     const exLogs = logs[selectedEx.exName] || [];
@@ -1170,11 +1554,8 @@ function saveLog() {
     // New entry — append
     if (!logs[selectedEx.exName]) logs[selectedEx.exName] = [];
     logs[selectedEx.exName].push({date:today, ...entry});
-    if (!sessions[today]) {
-      const meta = dayMetaForDate(today);
-      sessions[today] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' };
-    }
-    sessions[today].exLogs.push(entry);
+    const w = ensureWorkoutSession(today);
+    w.exLogs.push(entry);
     if (!selectedEx.isCustom) checks[`d${selectedEx.dayIdx}_${selectedEx.exIdx}`] = true;
   }
   saveAll(); closeModal();
@@ -1217,31 +1598,54 @@ function renderCalendar() {
   for (let i=0; i<firstMon; i++) html += `<div class="cal-cell"></div>`;
   for (let d=1; d<=daysInMonth; d++) {
     const dateStr = `${monthStr}-${String(d).padStart(2,'0')}`;
-    const session = sessions[dateStr];
-    const hasWork = session && (session.exLogs||[]).length > 0; // empty sessions render as plain
+    const dayEntries = getSessionsForDate(dateStr);
+    const ws = dayEntries.find(e => !e.entryType || e.entryType === 'workout');
+    const hasWorkout = ws && (ws.exLogs||[]).length > 0;
+    const hasRace = dayEntries.some(e => e.entryType === 'raceDay');
+    const hasBallGame = dayEntries.some(e => e.entryType === 'ballGame');
+    const hasAny = hasWorkout || hasRace || hasBallGame || dayEntries.some(e => e.notes && e.notes.trim());
     const isToday = dateStr === calTodayStr;
     let cls = 'cal-cell';
     if (isToday) cls += ' today';
-    if (hasWork) {
+    if (hasAny) {
       cls += ' has-workout';
-      const t = session.dayType || '';
-      if (t.includes('strength')) cls += ' type-strength';
-      else if (t.includes('aerobic')) cls += ' type-aerobic';
-      else if (t.includes('hybrid')) cls += ' type-hybrid';
-      else if (t.includes('recovery')) cls += ' type-recovery';
-      else cls += ' type-other';
+      if (hasRace) cls += ' type-race-day';
+      else if (hasBallGame) cls += ' type-ball-game';
+      else {
+        const t = (ws && ws.dayType || '').toLowerCase();
+        if (t.includes('strength')) cls += ' type-strength';
+        else if (t.includes('aerobic')) cls += ' type-aerobic';
+        else if (t.includes('hybrid')) cls += ' type-hybrid';
+        else if (t.includes('recovery')) cls += ' type-recovery';
+        else cls += ' type-other';
+      }
     }
     if (dateStr === selectedCalendarDate) cls += ' selected-day';
-    const summary = hasWork ? getSessionSummary(session) : '';
+    const summary = hasAny ? getSessionSummary(dayEntries) : '';
     html += `<div class="${cls}" onclick="openCalendarDay('${dateStr}')"><div class="cal-day-num">${d}</div>${summary ? `<div class="cal-summary">${summary}</div>` : ''}</div>`;
   }
   html += `</div></div>`;
   return html;
 }
-function getSessionSummary(session) {
-  const exLogs = session.exLogs || [];
+function getSessionSummary(entries) {
+  // entries is an array of session objects
+  const arr = Array.isArray(entries) ? entries : [entries];
+  // Race day: show event + distance
+  const race = arr.find(e => e.entryType === 'raceDay');
+  if (race) {
+    const parts = [race.dayName, race.distance].filter(Boolean);
+    return parts.map(escapeHtml).join(' · ');
+  }
+  // Ball game: show sport + session type
+  const ball = arr.find(e => e.entryType === 'ballGame');
+  if (ball) {
+    const parts = [ball.dayName, ball.sessionType].filter(Boolean);
+    return parts.map(escapeHtml).join(' · ');
+  }
+  // Workout: existing logic
+  const ws = arr.find(e => !e.entryType || e.entryType === 'workout');
+  const exLogs = ws ? (ws.exLogs || []) : [];
   if (!exLogs.length) return '';
-  // Show run stats whenever an entry has run metrics (km distance, pace, or duration) — regardless of day type
   const runEntry = exLogs.find(l => l.pace || l.runDuration || (l.reps && /\d+(\.\d+)?\s*km/i.test(l.reps)));
   if (runEntry) {
     const parts = [];
@@ -1250,7 +1654,6 @@ function getSessionSummary(session) {
     if (runEntry.pace) parts.push(runEntry.pace + '/km');
     if (parts.length) return parts.map(escapeHtml).join(' · ');
   }
-  // Otherwise (gym day with no run metrics) → list exercise names
   return [...new Set(exLogs.map(l => l.name))].map(escapeHtml).join(' · ');
 }
 function shiftCalendar(dir) {
@@ -1270,12 +1673,16 @@ function closeCalendarDay() {
   renderProgress();
 }
 function renderCalendarDayDetail(dateStr) {
-  const s = sessions[dateStr];
+  const dayEntries = getSessionsForDate(dateStr);
+  const ws = dayEntries.find(e => !e.entryType || e.entryType === 'workout');
   const d = new Date(dateStr+'T12:00:00');
   const dateLabel = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  // Weekday is deterministic from the date — never falls back to program[0]
   const safeDayIdx = weekdayIdx(dateStr);
-  const dayLabel = s ? s.dayName : dayMetaForDate(dateStr).name;
+  // For current-week dates, always derive name live from program[] so renames show immediately.
+  // For past-week dates, fall back to the historically stored dayName.
+  const liveMeta = dayMetaForDate(dateStr);
+  const isCurrentWeek = dateStr >= mondayOfToday() && dateStr <= dateForWeekday(6);
+  const dayLabel = (isCurrentWeek || !ws) ? liveMeta.name : ws.dayName;
 
   let html = `<div class="cal-day-detail" id="cal-day-detail">
     <div class="cal-day-detail-header">
@@ -1286,17 +1693,63 @@ function renderCalendarDayDetail(dateStr) {
       </div>
     </div>`;
 
-  // Session notes
-  const notesVal = s ? (s.notes || '') : '';
+  // Session notes (workout only)
+  const notesVal = ws ? (ws.notes || '') : '';
   html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
     <textarea class="session-notes-input" rows="2" placeholder="Session notes…" oninput="saveCalendarNotes('${dateStr}',this.value)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:13px;padding:8px 10px;resize:none">${escapeHtml(notesVal)}</textarea>
   </div>`;
 
-  if (!s || !(s.exLogs||[]).length) {
+  // Race Day entries
+  dayEntries.filter(e => e.entryType === 'raceDay').forEach((e, ri) => {
+    const arrIdx = dayEntries.indexOf(e);
+    html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="day-type-badge race-day">Race Day</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button onclick="openEditRaceDayModal('${dateStr}',${arrIdx})" class="log-btn has-log" style="font-size:10px">EDIT</button>
+          <button onclick="deleteAltEntry('${dateStr}',${arrIdx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1" title="Delete">×</button>
+        </div>
+      </div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(e.dayName)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--muted)">
+        ${e.distance?`<span>📍 ${escapeHtml(e.distance)}</span>`:''}
+        ${e.pace?`<span>⚡ ${escapeHtml(e.pace)}/km</span>`:''}
+        ${e.duration?`<span>⏱ ${escapeHtml(e.duration)}min</span>`:''}
+        ${e.hr?`<span>♥ ${escapeHtml(e.hr)}bpm</span>`:''}
+        ${e.cadence?`<span>${escapeHtml(e.cadence)}spm</span>`:''}
+      </div>
+      ${e.notes?`<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:4px">${escapeHtml(e.notes)}</div>`:''}
+    </div>`;
+  });
+
+  // Ball Game entries
+  dayEntries.filter(e => e.entryType === 'ballGame').forEach((e, bi) => {
+    const arrIdx = dayEntries.indexOf(e);
+    const compBadge = (e.sessionType === 'competition' || e.sessionType === 'p2') ? `<span class="day-type-badge race-day" style="margin-left:4px">${escapeHtml(e.sessionType.toUpperCase())}</span>` : '';
+    html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span><span class="day-type-badge ball-game">Ball Game</span>${compBadge}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button onclick="openEditBallGameModal('${dateStr}',${arrIdx})" class="log-btn has-log" style="font-size:10px">EDIT</button>
+          <button onclick="deleteAltEntry('${dateStr}',${arrIdx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1" title="Delete">×</button>
+        </div>
+      </div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(e.dayName)} <span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:capitalize">${escapeHtml(e.sessionType||'')}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--muted)">
+        ${e.duration?`<span>⏱ ${escapeHtml(e.duration)}min</span>`:''}
+        ${e.hr?`<span>♥ ${escapeHtml(e.hr)}bpm</span>`:''}
+        ${e.result?`<span style="color:var(--green)">🏆 ${escapeHtml(e.result)}</span>`:''}
+      </div>
+      ${e.notes?`<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:4px">${escapeHtml(e.notes)}</div>`:''}
+    </div>`;
+  });
+
+  // Workout exercises
+  if (!ws || !(ws.exLogs||[]).length) {
     html += `<div style="padding:16px 14px;color:var(--muted);font-size:13px">No exercises logged for this day.</div>`;
   } else {
     const grouped = {};
-    s.exLogs.forEach((l, i) => { if (!grouped[l.name]) grouped[l.name]=[]; grouped[l.name].push({entry:l,idx:i}); });
+    ws.exLogs.forEach((l, i) => { if (!grouped[l.name]) grouped[l.name]=[]; grouped[l.name].push({entry:l,idx:i}); });
     html += `<div>`;
     Object.entries(grouped).forEach(([name, items]) => {
       const safeName = name.replace(/'/g,"\\'");
@@ -1319,17 +1772,33 @@ function renderCalendarDayDetail(dateStr) {
     html += `</div>`;
   }
 
-  // Add exercise button
+  // Entry buttons
   html += `<button class="custom-ex-btn" onclick="openCustomModal(${safeDayIdx},'${dateStr}')"><span style="font-size:16px;line-height:1">＋</span> Add exercise</button>`;
+  html += `<button class="custom-ex-btn" onclick="openRaceDayModal('${dateStr}')"><span style="font-size:16px;line-height:1">＋</span> Log Race Day</button>`;
+  html += `<button class="custom-ex-btn" onclick="openBallGameModal('${dateStr}')"><span style="font-size:16px;line-height:1">＋</span> Log Ball Game</button>`;
   html += `</div>`;
   return html;
 }
 function saveCalendarNotes(dateStr, val) {
-  if (!sessions[dateStr]) {
-    const meta = dayMetaForDate(dateStr);
-    sessions[dateStr] = { dayName: meta.name, dayType: meta.type, exLogs: [], notes: '' };
+  const ws = getWorkoutSession(dateStr);
+  if (!val && (!ws || !(ws.exLogs||[]).length)) {
+    if (sessions[dateStr]) {
+      const arr = ensureSessionArray(dateStr);
+      const idx = arr.findIndex(e => !e.entryType || e.entryType === 'workout');
+      if (idx >= 0) arr.splice(idx, 1);
+      if (arr.length === 0) delete sessions[dateStr];
+      save('sessions', sessions);
+    }
+    return;
   }
-  sessions[dateStr].notes = val;
+  const w = ensureWorkoutSession(dateStr);
+  w.notes = val;
+  if (!val && !(w.exLogs||[]).length) {
+    const arr = sessions[dateStr];
+    const idx = arr.findIndex(e => !e.entryType || e.entryType === 'workout');
+    if (idx >= 0) arr.splice(idx, 1);
+    if (arr.length === 0) delete sessions[dateStr];
+  }
   save('sessions', sessions);
 }
 
@@ -1337,7 +1806,13 @@ function saveCalendarNotes(dateStr, val) {
 function getFilteredDates() {
   const now = new Date();
   const today = todayStr();
-  const all = Object.keys(sessions).sort().reverse();
+  // Exclude ghost sessions: no exercises and no notes
+  const all = Object.keys(sessions).filter(d => {
+    return getSessionsForDate(d).some(s =>
+      (s.exLogs && s.exLogs.length > 0) || (s.notes && s.notes.trim()) ||
+      s.entryType === 'raceDay' || s.entryType === 'ballGame'
+    );
+  }).sort().reverse();
   if (historyFilter === 'all') return all;
   if (historyFilter === 'year') return all.filter(d => d.startsWith(String(now.getFullYear())));
   if (historyFilter === 'month') return all.filter(d => d.startsWith(today.slice(0,7)));
@@ -1364,33 +1839,50 @@ function renderHistory() {
     return html;
   }
   filtered.forEach((dateStr, i) => {
-    const s = sessions[dateStr];
-    // Group exLogs by exercise name for display
-    const grouped = {};
-    (s.exLogs||[]).forEach(ex => {
-      if (!grouped[ex.name]) grouped[ex.name] = [];
-      grouped[ex.name].push(ex);
+    const dayEntries = getSessionsForDate(dateStr);
+    // Render each entry in the day as its own card
+    dayEntries.forEach((s, ei) => {
+      const cardId = `sess-${i}-${ei}`;
+      if (s.entryType === 'raceDay') {
+        const metaParts = [s.distance, s.pace ? s.pace+'/km' : '', s.duration ? s.duration+'min' : '', s.hr ? '♥ '+s.hr : ''].filter(Boolean);
+        html += `<div class="session-card"><div class="session-header" onclick="toggleSession('${cardId}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${escapeHtml(s.dayName)} <span class="day-type-badge race-day" style="margin-left:4px">Race Day</span></div></div><div class="session-count" style="font-size:11px">🏁</div></div><div class="session-body" id="${cardId}">`;
+        html += `<div class="session-ex-row"><span class="session-ex-name">Stats</span><span class="session-ex-val">${metaParts.map(escapeHtml).join(' · ')||'—'}</span></div>`;
+        if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0">${escapeHtml(s.notes)}</div>`;
+        html += `</div></div>`;
+      } else if (s.entryType === 'ballGame') {
+        const compBadge = (s.sessionType === 'competition' || s.sessionType === 'p2') ? ` <span class="day-type-badge race-day">${s.sessionType.toUpperCase()}</span>` : '';
+        const metaParts = [s.duration ? s.duration+'min' : '', s.hr ? '♥ '+s.hr : ''].filter(Boolean);
+        html += `<div class="session-card"><div class="session-header" onclick="toggleSession('${cardId}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${escapeHtml(s.dayName)} <span class="day-type-badge ball-game" style="margin-left:4px">Ball Game</span>${compBadge}</div></div><div class="session-count" style="font-size:11px">🏀</div></div><div class="session-body" id="${cardId}">`;
+        if (metaParts.length) html += `<div class="session-ex-row"><span class="session-ex-name">Stats</span><span class="session-ex-val">${metaParts.map(escapeHtml).join(' · ')}</span></div>`;
+        if (s.result) html += `<div class="session-ex-row"><span class="session-ex-name">Result</span><span class="session-ex-val" style="color:var(--green)">${escapeHtml(s.result)}</span></div>`;
+        if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0">${escapeHtml(s.notes)}</div>`;
+        html += `</div></div>`;
+      } else {
+        // Workout
+        const grouped = {};
+        (s.exLogs||[]).forEach(ex => { if (!grouped[ex.name]) grouped[ex.name]=[]; grouped[ex.name].push(ex); });
+        const exCount = Object.keys(grouped).length;
+        const typeTag = s.dayType ? `<span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:capitalize"> · ${s.dayType}</span>` : '';
+        html += `<div class="session-card"><div class="session-header" onclick="toggleSession('${cardId}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${escapeHtml(s.dayName)}${typeTag}</div></div><div class="session-count">${exCount} ex</div></div><div class="session-body" id="${cardId}">`;
+        if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04)">${escapeHtml(s.notes)}</div>`;
+        Object.entries(grouped).forEach(([name, entries]) => {
+          entries.forEach((ex, exi) => {
+            const valParts = [];
+            if (ex.reps) valParts.push(escapeHtml(ex.reps));
+            if (ex.weight) valParts.push(escapeHtml(ex.weight)+'kg');
+            if (ex.pace) valParts.push(escapeHtml(ex.pace)+'/km');
+            if (ex.hr) valParts.push('♥ '+escapeHtml(ex.hr));
+            if (ex.cadence) valParts.push(escapeHtml(ex.cadence)+'spm');
+            if (ex.runDuration) valParts.push(escapeHtml(ex.runDuration)+'min');
+            const rpeHtml = ex.rpe ? `<span class="session-ex-rpe">RPE ${escapeHtml(String(ex.rpe))}</span>` : '';
+            const tagsHtml = getStatusTagHtml(ex.statusTags||[]);
+            const dropLabel = entries.length > 1 ? `<span style="font-size:10px;color:var(--muted)"> #${exi+1}</span>` : '';
+            html += `<div class="session-ex-row"><span class="session-ex-name">${escapeHtml(name)}${dropLabel} ${tagsHtml}</span><span>${rpeHtml}<span class="session-ex-val">${valParts.join(' · ')||'—'}</span></span></div>`;
+          });
+        });
+        html += `</div></div>`;
+      }
     });
-    const exCount = Object.keys(grouped).length;
-    const typeTag = s.dayType ? `<span style="font-size:11px;color:var(--muted);font-weight:400;text-transform:capitalize"> · ${s.dayType}</span>` : '';
-    html += `<div class="session-card"><div class="session-header" onclick="toggleSession('sess-${i}')"><div style="flex:1;min-width:0"><div class="session-date-str">${formatDate(dateStr)}</div><div class="session-title">${escapeHtml(s.dayName)}${typeTag}</div></div><div class="session-count">${exCount} ex</div></div><div class="session-body" id="sess-${i}">`;
-    if (s.notes) html += `<div style="font-size:11px;color:var(--muted);font-style:italic;padding:6px 0 4px;border-bottom:1px solid rgba(255,255,255,0.04)">${escapeHtml(s.notes)}</div>`;
-    Object.entries(grouped).forEach(([name, entries]) => {
-      entries.forEach((ex, ei) => {
-        const valParts = [];
-        if (ex.reps) valParts.push(escapeHtml(ex.reps));
-        if (ex.weight) valParts.push(escapeHtml(ex.weight)+'kg');
-        if (ex.pace) valParts.push(escapeHtml(ex.pace)+'/km');
-        if (ex.hr) valParts.push('♥ '+escapeHtml(ex.hr));
-        if (ex.cadence) valParts.push(escapeHtml(ex.cadence)+'spm');
-        if (ex.runDuration) valParts.push(escapeHtml(ex.runDuration)+'min');
-        const rpeHtml = ex.rpe ? `<span class="session-ex-rpe">RPE ${escapeHtml(String(ex.rpe))}</span>` : '';
-        const tagsHtml = getStatusTagHtml(ex.statusTags||[]);
-        const dropLabel = entries.length > 1 ? `<span style="font-size:10px;color:var(--muted)"> #${ei+1}</span>` : '';
-        html += `<div class="session-ex-row"><span class="session-ex-name">${escapeHtml(name)}${dropLabel} ${tagsHtml}</span><span>${rpeHtml}<span class="session-ex-val">${valParts.join(' · ')||'—'}</span></span></div>`;
-      });
-    });
-    html += `</div></div>`;
   });
   return html;
 }
@@ -1575,7 +2067,7 @@ function importData(event) {
       goals = Array.isArray(data.goals) ? data.goals : [];
       sessions = (data.sessions && typeof data.sessions === 'object') ? data.sessions : {};
       programWeek = data.programWeek || null;
-      migrateProgramToWeekdays(); checkNewWeek();
+      migrateProgramToWeekdays(); migrateSessionsToArray(); checkNewWeek();
       await saveAll(); renderToday(); renderGoals(); renderProgress();
       status.textContent = `Restored from ${data.exportedAt ? data.exportedAt.slice(0, 10) : 'backup'}`; status.className = 'parse-status';
     } catch(err) { status.textContent = 'Failed to parse backup file — is it a valid JSON export?'; status.className = 'parse-status error'; }
@@ -1623,15 +2115,20 @@ function renderExportSelector() {
   </div>
   <div class="export-session-list">`;
   allDates.forEach(dateStr => {
-    const s = sessions[dateStr];
+    const dayEntries = getSessionsForDate(dateStr);
     const d = new Date(dateStr+'T12:00:00');
     const checked = sel.has(dateStr);
-    const exCount = Object.keys((s.exLogs||[]).reduce((a,e)=>(a[e.name]=1,a),{})).length;
+    const ws = dayEntries.find(e => !e.entryType || e.entryType === 'workout');
+    const exCount = ws ? Object.keys((ws.exLogs||[]).reduce((a,e)=>(a[e.name]=1,a),{})).length : 0;
+    const hasRace = dayEntries.some(e => e.entryType === 'raceDay');
+    const hasBall = dayEntries.some(e => e.entryType === 'ballGame');
+    const label = hasRace ? dayEntries.find(e=>e.entryType==='raceDay').dayName : hasBall ? dayEntries.find(e=>e.entryType==='ballGame').dayName : (ws ? ws.dayName : dateStr);
+    const badge = hasRace ? ' 🏁' : hasBall ? ' 🏀' : '';
     html += `<div class="export-session-row ${checked?'selected':''}" onclick="exportToggleDate('${dateStr}')">
       <div class="export-cb ${checked?'checked':''}"></div>
       <div class="export-session-date">${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}</div>
-      <div class="export-session-name">${escapeHtml(s.dayName)}</div>
-      <div class="export-session-count">${exCount} ex</div>
+      <div class="export-session-name">${escapeHtml(label)}${badge}</div>
+      <div class="export-session-count">${exCount > 0 ? exCount+' ex' : ''}</div>
     </div>`;
   });
   html += `</div>
@@ -1679,36 +2176,58 @@ SESSIONS (newest first)
 ${'═'.repeat(48)}
 `;
   selected.forEach(dateStr => {
-    const s = sessions[dateStr];
+    const dayEntries = getSessionsForDate(dateStr);
     const d = new Date(dateStr+'T12:00:00');
-    text += `
-[${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}]  ${s.dayName}${s.dayType?' | '+s.dayType:''}
-`;
-    if (s.notes) text += `  Notes: ${s.notes}
-`;
-    const grouped = {};
-    (s.exLogs||[]).forEach(ex => { if (!grouped[ex.name]) grouped[ex.name]=[]; grouped[ex.name].push(ex); });
-    Object.entries(grouped).forEach(([name, entries]) => {
-      entries.forEach((ex, ei) => {
+    dayEntries.forEach(s => {
+      if (s.entryType === 'raceDay') {
+        text += `\n[${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}]  ${s.dayName} | Race Day\n`;
         const parts = [];
-        if (ex.reps) parts.push(ex.reps);
-        if (ex.weight) parts.push(ex.weight+'kg');
-        if (ex.pace) parts.push('Pace: '+ex.pace+'/km');
-        if (ex.cadence) parts.push('Cadence: '+ex.cadence+'spm');
-        if (ex.runDuration) parts.push('Duration: '+ex.runDuration+'min');
-        if (ex.hr) parts.push('Avg HR: '+ex.hr+'bpm');
-        if (ex.rpe) parts.push('RPE '+ex.rpe);
-        if (ex.statusTags && ex.statusTags.length) parts.push(ex.statusTags.join(', '));
-        if (ex.notes) parts.push(ex.notes);
-        const label = entries.length > 1 ? `${name} #${ei+1}` : name;
-        text += `  ${label}: ${parts.join(' | ')||'—'}
-`;
-      });
+        if (s.distance) parts.push('Distance: '+s.distance);
+        if (s.pace) parts.push('Pace: '+s.pace+'/km');
+        if (s.cadence) parts.push('Cadence: '+s.cadence+'spm');
+        if (s.duration) parts.push('Duration: '+s.duration+'min');
+        if (s.hr) parts.push('Avg HR: '+s.hr+'bpm');
+        if (parts.length) text += `  ${parts.join(' | ')}\n`;
+        if (s.notes) text += `  Notes: ${s.notes}\n`;
+      } else if (s.entryType === 'ballGame') {
+        text += `\n[${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}]  ${s.dayName} | Ball Game (${s.sessionType||''})\n`;
+        const parts = [];
+        if (s.duration) parts.push('Duration: '+s.duration+'min');
+        if (s.hr) parts.push('Avg HR: '+s.hr+'bpm');
+        if (parts.length) text += `  ${parts.join(' | ')}\n`;
+        if (s.result) text += `  Result: ${s.result}\n`;
+        if (s.notes) text += `  Notes: ${s.notes}\n`;
+      } else {
+        // Workout
+        text += `\n[${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}]  ${s.dayName}${s.dayType?' | '+s.dayType:''}\n`;
+        if (s.notes) text += `  Notes: ${s.notes}\n`;
+        const grouped = {};
+        (s.exLogs||[]).forEach(ex => { if (!grouped[ex.name]) grouped[ex.name]=[]; grouped[ex.name].push(ex); });
+        Object.entries(grouped).forEach(([name, entries]) => {
+          entries.forEach((ex, ei) => {
+            const parts = [];
+            if (ex.reps) parts.push(ex.reps);
+            if (ex.weight) parts.push(ex.weight+'kg');
+            if (ex.pace) parts.push('Pace: '+ex.pace+'/km');
+            if (ex.cadence) parts.push('Cadence: '+ex.cadence+'spm');
+            if (ex.runDuration) parts.push('Duration: '+ex.runDuration+'min');
+            if (ex.hr) parts.push('Avg HR: '+ex.hr+'bpm');
+            if (ex.rpe) parts.push('RPE '+ex.rpe);
+            if (ex.statusTags && ex.statusTags.length) parts.push(ex.statusTags.join(', '));
+            if (ex.notes) parts.push(ex.notes);
+            const label = entries.length > 1 ? `${name} #${ei+1}` : name;
+            text += `  ${label}: ${parts.join(' | ')||'—'}\n`;
+          });
+        });
+      }
     });
   });
 
   // Exercise progression — only for exercises in selected sessions
-  const selectedExNames = new Set(selected.flatMap(d => (sessions[d].exLogs||[]).map(e=>e.name)));
+  const selectedExNames = new Set(selected.flatMap(d => {
+    const ws = getWorkoutSession(d);
+    return ws ? (ws.exLogs||[]).map(e=>e.name) : [];
+  }));
   const exWithWeight = [...selectedExNames].filter(n => logs[n] && logs[n].some(e=>e.weight && selected.includes(e.date)));
   if (exWithWeight.length > 0) {
     text += `
@@ -1801,6 +2320,7 @@ Ankle Stability Drill | 10min | rehab
 Foam Rolling | 10min | recovery`;
 
 // INIT
+initTheme();
 auth.onAuthStateChanged(async (user) => {
   currentUser = user;
   if (user) {
