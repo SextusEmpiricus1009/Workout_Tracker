@@ -313,12 +313,9 @@
 </div>
 
 <div id="screen-today" class="screen active">
-  <div class="screen-header" style="display:flex;align-items:flex-start;justify-content:space-between">
-    <div>
-      <div class="screen-title">Today</div>
-      <div class="screen-sub" id="today-date"></div>
-    </div>
-    <button onclick="toggleTheme()" id="theme-toggle-btn" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px 0;line-height:1;color:var(--muted)" title="Toggle light/dark mode">☀️</button>
+  <div class="screen-header">
+    <div class="screen-title">Today</div>
+    <div class="screen-sub" id="today-date"></div>
   </div>
   <div id="week-strip" class="week-strip"></div>
   <div id="session-notes-area"></div>
@@ -439,6 +436,7 @@ Now produce my plan in this exact format.</textarea>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
     Program
   </button>
+  <button class="nav-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode" style="font-size:20px;line-height:1">☀️</button>
 </nav>
 
 <div class="modal-overlay" id="log-modal">
@@ -694,6 +692,7 @@ let calendarMonth = new Date().getMonth();
 let historyFilter = 'month';
 let selectedCalendarDate = null; // date string when viewing a calendar day detail
 let activeLogDate = null;        // date being logged to (null = today)
+let runTypeFilter = null;        // null = all run types
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1563,9 +1562,74 @@ function saveLog() {
   renderProgress();
 }
 
+// RUN HELPERS
+function parsePace(paceStr) {
+  if (!paceStr) return null;
+  const m = String(paceStr).match(/^(\d+):(\d+)$/);
+  if (m) return parseInt(m[1]) + parseInt(m[2]) / 60;
+  const n = parseFloat(paceStr);
+  return isNaN(n) ? null : n;
+}
+function formatPace(decMins) {
+  if (!decMins) return '—';
+  const m = Math.floor(decMins);
+  const s = Math.round((decMins - m) * 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function parseDistance(repsStr) {
+  if (!repsStr) return null;
+  const m = String(repsStr).match(/(\d+(\.\d+)?)\s*km/i);
+  return m ? parseFloat(m[1]) : null;
+}
+function detectRunType(name) {
+  const n = name.toLowerCase();
+  if (/easy|recovery|aerobic|conversational|jog/.test(n)) return 'Easy';
+  if (/long/.test(n)) return 'Long';
+  if (/tempo|threshold|steady/.test(n)) return 'Tempo';
+  if (/interval|repeat|speed|fast|hard/.test(n)) return 'Hard';
+  return 'Run';
+}
+function calcEfficiency(pace, hr) {
+  const p = parsePace(pace);
+  const h = parseFloat(hr);
+  if (!p || !h || p === 0) return null;
+  return (1000 / p) / h;
+}
+function isRunEntry(entry) {
+  return !!(entry.pace || entry.runDuration || entry.hr || parseDistance(entry.reps || ''));
+}
+function getRunSessions() {
+  const runs = [];
+  Object.entries(logs).forEach(([name, entries]) => {
+    entries.forEach(entry => {
+      if (isRunEntry(entry)) {
+        runs.push({
+          date: entry.date,
+          name,
+          pace: entry.pace || '',
+          hr: entry.hr || '',
+          distance: parseDistance(entry.reps || ''),
+          duration: entry.runDuration || '',
+          cadence: entry.cadence || '',
+          rpe: entry.rpe || '',
+          type: detectRunType(name)
+        });
+      }
+    });
+  });
+  runs.sort((a, b) => a.date.localeCompare(b.date));
+  return runs;
+}
+function setRunTypeFilter(t) { runTypeFilter = t; renderProgress(); }
+
 // PROGRESS — STATS
 function getStats() {
-  const dates = Object.keys(sessions).sort();
+  const dates = Object.keys(sessions).filter(d =>
+    getSessionsForDate(d).some(s =>
+      (s.exLogs && s.exLogs.length > 0) || (s.notes && s.notes.trim()) ||
+      s.entryType === 'raceDay' || s.entryType === 'ballGame'
+    )
+  ).sort();
   const total = dates.length;
   const now = new Date();
   const today = todayStr();
@@ -1574,14 +1638,16 @@ function getStats() {
   const weekStartStr = fmtLocal(weekStart);
   const thisWeek  = dates.filter(d => d >= weekStartStr && d <= today).length;
   const thisMonth = dates.filter(d => d.startsWith(today.slice(0,7))).length;
-  // Streak: consecutive workout days going back (maintain streak if worked out recently)
+  // Streak: consecutive weeks with at least one logged session
   const dateSet = new Set(dates);
+  const dow = (now.getDay()+6)%7; // 0=Mon
   let streak = 0;
-  let check = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (!dateSet.has(today)) check.setDate(check.getDate()-1); // don't break streak before day ends
+  let weekMon = new Date(now.getFullYear(), now.getMonth(), now.getDate()-dow);
   while (true) {
-    const s = fmtLocal(check);
-    if (dateSet.has(s)) { streak++; check.setDate(check.getDate()-1); } else break;
+    const weekSun = new Date(weekMon.getFullYear(), weekMon.getMonth(), weekMon.getDate()+6);
+    const wStart = fmtLocal(weekMon), wEnd = fmtLocal(weekSun);
+    const hasSession = dates.some(d => d >= wStart && d <= wEnd && dateSet.has(d));
+    if (hasSession) { streak++; weekMon.setDate(weekMon.getDate()-7); } else break;
   }
   return {total, thisWeek, thisMonth, streak};
 }
@@ -1889,12 +1955,207 @@ function renderHistory() {
 function toggleSession(id) { const el=document.getElementById(id); if(el) el.classList.toggle('open'); }
 function setHistoryFilter(f) { historyFilter=f; renderProgress(); }
 
+// PROGRESS — RUN DASHBOARD
+function renderRunDashboard() {
+  const runs = getRunSessions();
+  if (!runs.length) return '';
+
+  const now = new Date();
+  const weekStart = fmtLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getDay()+6)%7));
+  const weekRuns = runs.filter(r => r.date >= weekStart);
+  const weekDist = weekRuns.reduce((sum, r) => sum + (r.distance || 0), 0);
+  const allHRs = runs.filter(r => r.hr).map(r => parseFloat(r.hr)).filter(Boolean);
+  const avgHR = allHRs.length ? Math.round(allHRs.reduce((a, b) => a + b, 0) / allHRs.length) : null;
+  const paces = runs.filter(r => r.pace).map(r => parsePace(r.pace)).filter(Boolean);
+  const bestPace = paces.length ? Math.min(...paces) : null;
+
+  let html = `<div class="section-label" style="margin-bottom:8px">Running</div>`;
+
+  // Stats
+  html += `<div class="stats-row" style="margin-bottom:12px">
+    <div class="stat-card"><div class="stat-num">${runs.length}</div><div class="stat-label">Total Runs</div></div>
+    <div class="stat-card"><div class="stat-num">${weekDist ? weekDist.toFixed(1)+'km' : '—'}</div><div class="stat-label">This Week</div></div>
+    <div class="stat-card"><div class="stat-num">${bestPace ? formatPace(bestPace) : '—'}</div><div class="stat-label">Best Pace</div></div>
+    <div class="stat-card"><div class="stat-num">${avgHR ? avgHR+'bpm' : '—'}</div><div class="stat-label">Avg HR</div></div>
+  </div>`;
+
+  // Pace vs HR chart
+  const paceHRRuns = runs.filter(r => r.pace && r.hr);
+  if (paceHRRuns.length >= 2) {
+    html += `<div class="chart-container">
+      <div class="chart-title">Pace vs Heart Rate</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">↓ pace = faster &nbsp;·&nbsp; ↓ HR at same pace = better fitness</div>
+      <div class="chart-canvas-wrap"><canvas id="run-pace-hr-chart"></canvas></div>
+      <div style="display:flex;gap:16px;margin-top:8px;font-size:10px">
+        <span style="color:#6dbcdc">— Pace (min/km)</span>
+        <span style="color:#e05f5f">— Avg HR (bpm)</span>
+      </div>
+    </div>`;
+  }
+
+  // Aerobic Efficiency chart
+  const effRuns = runs.filter(r => r.pace && r.hr);
+  if (effRuns.length >= 2) {
+    html += `<div class="chart-container">
+      <div class="chart-title">Aerobic Efficiency</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px">Speed ÷ HR — higher = more economical</div>
+      <div class="chart-canvas-wrap"><canvas id="run-eff-chart"></canvas></div>
+    </div>`;
+  }
+
+  // Run history
+  html += `<div class="section-label" style="margin-top:16px;margin-bottom:8px">Run History</div>`;
+  const types = [...new Set(runs.map(r => r.type))];
+  if (types.length > 1) {
+    html += `<div class="exercise-select-scroll" style="margin-bottom:8px">`;
+    html += `<button class="ex-pill ${runTypeFilter===null?'active':''}" onclick="setRunTypeFilter(null)">All</button>`;
+    types.forEach(t => { html += `<button class="ex-pill ${runTypeFilter===t?'active':''}" onclick="setRunTypeFilter('${t}')">${escapeHtml(t)}</button>`; });
+    html += `</div>`;
+  }
+  const filtered = runTypeFilter ? runs.filter(r => r.type === runTypeFilter) : runs;
+  html += `<div class="log-history">`;
+  [...filtered].reverse().forEach(r => {
+    const parts = [
+      r.distance ? r.distance + 'km' : '',
+      r.pace ? r.pace + '/km' : '',
+      r.duration ? r.duration + 'min' : '',
+      r.hr ? '♥ ' + r.hr : '',
+      r.cadence ? r.cadence + 'spm' : ''
+    ].filter(Boolean);
+    const eff = calcEfficiency(r.pace, r.hr);
+    html += `<div class="log-entry">
+      <div>
+        <div class="log-date">${escapeHtml(r.date)} <span style="font-size:10px;color:var(--muted);font-weight:400">${escapeHtml(r.type)}</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${escapeHtml(r.name)}</div>
+        ${eff ? `<div style="font-size:10px;color:#6dbcdc;margin-top:3px">Efficiency ${eff.toFixed(2)}</div>` : ''}
+      </div>
+      <div class="log-values" style="text-align:right;font-size:11px;line-height:1.7">${parts.map(escapeHtml).join('<br>')}</div>
+    </div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+function drawPaceHRChart(runs) {
+  const canvas = document.getElementById('run-pace-hr-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.parentElement.offsetWidth * dpr;
+  canvas.height = 140 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = canvas.parentElement.offsetWidth, H = 140;
+  const pad = {t:20, r:46, b:30, l:38}, gW = W-pad.l-pad.r, gH = H-pad.t-pad.b;
+  const paces = runs.map(r => parsePace(r.pace));
+  const hrs   = runs.map(r => parseFloat(r.hr));
+  const pMin = Math.min(...paces)*0.95, pMax = Math.max(...paces)*1.05;
+  const hMin = Math.min(...hrs)*0.95,   hMax = Math.max(...hrs)*1.05;
+  const xS    = i => pad.l + (i / (runs.length-1)) * gW;
+  const yPace = v => pad.t + gH - ((v-pMin)/(pMax-pMin)) * gH;
+  const yHR   = v => pad.t + gH - ((v-hMin)/(hMax-hMin)) * gH;
+  // Grid
+  ctx.strokeStyle='#2a2a2e'; ctx.lineWidth=1;
+  for (let i=0; i<=4; i++) {
+    const y = pad.t + (i/4)*gH;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+gW,y); ctx.stroke();
+  }
+  // Left axis — pace
+  ctx.fillStyle='#6dbcdc'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='right';
+  for (let i=0; i<=4; i++) {
+    const v = pMax - (i/4)*(pMax-pMin);
+    ctx.fillText(formatPace(v), pad.l-4, pad.t+(i/4)*gH+4);
+  }
+  // Right axis — HR
+  ctx.fillStyle='#e05f5f'; ctx.textAlign='left';
+  for (let i=0; i<=4; i++) {
+    const v = hMax - (i/4)*(hMax-hMin);
+    ctx.fillText(Math.round(v), pad.l+gW+4, pad.t+(i/4)*gH+4);
+  }
+  // Pace line
+  ctx.strokeStyle='#6dbcdc'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(xS(0), yPace(paces[0]));
+  paces.forEach((p,i) => { if(i>0) ctx.lineTo(xS(i), yPace(p)); });
+  ctx.stroke();
+  // HR line
+  ctx.strokeStyle='#e05f5f'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(xS(0), yHR(hrs[0]));
+  hrs.forEach((h,i) => { if(i>0) ctx.lineTo(xS(i), yHR(h)); });
+  ctx.stroke();
+  // Dots
+  paces.forEach((p,i) => { ctx.fillStyle='#6dbcdc'; ctx.beginPath(); ctx.arc(xS(i),yPace(p),3,0,Math.PI*2); ctx.fill(); });
+  hrs.forEach(  (h,i) => { ctx.fillStyle='#e05f5f'; ctx.beginPath(); ctx.arc(xS(i),yHR(h),  3,0,Math.PI*2); ctx.fill(); });
+  // X labels
+  ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+  const step = Math.max(1, Math.floor(runs.length/5));
+  runs.forEach((r,i) => {
+    if (i%step===0 || i===runs.length-1) {
+      const d = new Date(r.date+'T12:00:00');
+      ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`, xS(i), H-pad.b+12);
+    }
+  });
+}
+function drawEfficiencyChart(runs) {
+  const canvas = document.getElementById('run-eff-chart');
+  if (!canvas) return;
+  const dataPoints = runs.map(r => ({ date: r.date, val: calcEfficiency(r.pace, r.hr) })).filter(p => p.val !== null);
+  if (dataPoints.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.parentElement.offsetWidth * dpr;
+  canvas.height = 140 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = canvas.parentElement.offsetWidth, H = 140;
+  const pad = {t:20, r:16, b:30, l:42}, gW = W-pad.l-pad.r, gH = H-pad.t-pad.b;
+  const vals = dataPoints.map(p => p.val);
+  const min  = Math.min(...vals)*0.9, max = Math.max(...vals)*1.1;
+  const xS   = i => pad.l + (i/(dataPoints.length-1))*gW;
+  const yS   = v => pad.t + gH - ((v-min)/(max-min))*gH;
+  // Grid
+  ctx.strokeStyle='#2a2a2e'; ctx.lineWidth=1;
+  for (let i=0; i<=4; i++) {
+    const y = pad.t+(i/4)*gH;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+gW,y); ctx.stroke();
+    ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillText((max-(i/4)*(max-min)).toFixed(2), pad.l-4, y+4);
+  }
+  // Fill
+  const grad = ctx.createLinearGradient(0,pad.t,0,pad.t+gH);
+  grad.addColorStop(0,'rgba(109,188,220,0.2)'); grad.addColorStop(1,'rgba(109,188,220,0)');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.moveTo(xS(0),yS(dataPoints[0].val));
+  dataPoints.forEach((p,i) => { if(i>0) ctx.lineTo(xS(i),yS(p.val)); });
+  ctx.lineTo(xS(dataPoints.length-1),pad.t+gH); ctx.lineTo(xS(0),pad.t+gH); ctx.closePath(); ctx.fill();
+  // Line
+  ctx.strokeStyle='#6dbcdc'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(xS(0),yS(dataPoints[0].val));
+  dataPoints.forEach((p,i) => { if(i>0) ctx.lineTo(xS(i),yS(p.val)); });
+  ctx.stroke();
+  // Dots
+  ctx.fillStyle='#6dbcdc';
+  dataPoints.forEach((p,i) => { ctx.beginPath(); ctx.arc(xS(i),yS(p.val),3,0,Math.PI*2); ctx.fill(); });
+  // X labels
+  ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+  const step = Math.max(1,Math.floor(dataPoints.length/5));
+  dataPoints.forEach((p,i) => {
+    if (i%step===0 || i===dataPoints.length-1) {
+      const d = new Date(p.date+'T12:00:00');
+      ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`, xS(i), H-pad.b+12);
+    }
+  });
+}
+
 // PROGRESS — EXERCISE CHART
 function getAllExercises() {
   const names = [];
   program.forEach(day=>day.exercises.forEach(ex=>{ if(!names.includes(ex.name)) names.push(ex.name); }));
   Object.keys(logs).forEach(name=>{ if(!names.includes(name)) names.push(name); });
   return names;
+}
+function getAllStrengthExercises() {
+  return getAllExercises().filter(name => {
+    const exLogs = logs[name] || [];
+    if (!exLogs.length) return true; // keep unlogged program exercises
+    return !exLogs.every(e => isRunEntry(e));
+  });
 }
 function renderProgress() {
   const content = document.getElementById('progress-content');
@@ -1903,7 +2164,7 @@ function renderProgress() {
 
   // Stats row
   html += `<div class="stats-row">
-    <div class="stat-card"><div class="stat-num">${stats.streak}</div><div class="stat-label">🔥 Streak</div></div>
+    <div class="stat-card"><div class="stat-num">${stats.streak}</div><div class="stat-label">🔥 Week Streak</div></div>
     <div class="stat-card"><div class="stat-num">${stats.thisWeek}</div><div class="stat-label">This Week</div></div>
     <div class="stat-card"><div class="stat-num">${stats.thisMonth}</div><div class="stat-label">This Month</div></div>
     <div class="stat-card"><div class="stat-num">${stats.total}</div><div class="stat-label">Total</div></div>
@@ -1921,8 +2182,11 @@ function renderProgress() {
   html += `<div class="section-label">Session History</div>`;
   html += renderHistory();
 
-  // Exercise progress
-  const exNames = getAllExercises().filter(n => logs[n] && logs[n].length > 0);
+  // Running dashboard (above strength progress)
+  html += renderRunDashboard();
+
+  // Exercise progress (strength only)
+  const exNames = getAllStrengthExercises().filter(n => logs[n] && logs[n].length > 0);
   if (exNames.length > 0) {
     if (progressExIdx >= exNames.length) progressExIdx = 0;
     html += `<div class="section-label" style="margin-top:24px">Exercise Progress</div>`;
@@ -1941,6 +2205,11 @@ function renderProgress() {
   }
 
   content.innerHTML = html;
+  // Draw run charts after DOM is updated
+  const runSessions = getRunSessions();
+  const paceHRRuns = runSessions.filter(r => r.pace && r.hr);
+  if (paceHRRuns.length >= 2) drawPaceHRChart(paceHRRuns);
+  if (paceHRRuns.length >= 2) drawEfficiencyChart(paceHRRuns);
   if (exNames.length > 0) drawChart(exNames[progressExIdx], logs[exNames[progressExIdx]] || []);
 }
 function selectProgressEx(i) { progressExIdx=i; renderProgress(); }
