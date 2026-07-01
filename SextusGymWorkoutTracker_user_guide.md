@@ -9,7 +9,7 @@ Sextus' Gym Workout Tracker is a personal gym + running tracker. You give it a w
 1. Open the app and tap **Sign in with Google**. Your data is tied to your Google account.
 2. Your data is saved on your device instantly and synced to the cloud in the background, so it follows you across devices and survives a browser refresh. It also works offline — changes sync next time you're online.
 
-There are four tabs along the bottom: **Today**, **Progress**, **Goals**, and **Program**.
+There are four tabs along the bottom: **Today**, **Progress**, **Goals**, and **Program**. The ☀️ / 🌙 button in the top-right corner toggles between dark and light mode.
 
 ---
 
@@ -105,15 +105,25 @@ At the start of each new week (Monday), the Today tab clears the previous week's
 ## Tracking progress (Progress tab)
 
 - **Stats row** — current streak, workouts this week, this month, and all-time total.
-- **Calendar** — each logged day is colored by type. Run days show distance · duration · pace; other days list the exercise names; days with nothing logged stay plain. Tap any day to open its detail.
-- **Session History** — a scrollable list of past sessions, filterable by Week / Month / Year / All. Tap a session to expand it.
-- **Exercise Progress** — pick an exercise to see a weight-over-time chart plus its full log history. (Needs at least two logged sessions with weight to draw a trend.)
+- **All-Time Records** — best streak, best week, total volume lifted, best pace, and longest run.
+- **Calendar** — each logged day is colored by session type. Run days show distance · duration · pace; other days list the exercise names; days with nothing logged stay plain. Tap any day to open its detail and add, edit, or delete entries.
+- **Running dashboard** — total runs, this week's distance, best pace, average HR. Includes a Pace vs HR chart and Aerobic Efficiency trend (requires at least 2 runs with both pace and HR logged).
+- **Exercise Progress** — pick an exercise from the scrollable pill list, then toggle between Weight, Est. 1RM (Epley formula), or Volume view. Shows a chart and the full log history with PR badges.
+- **Activity Heatmap** — a GitHub-style 365-day grid showing training frequency and intensity at a glance.
 
 ---
 
 ## Goals tab
 
-Add a milestone (e.g. "Run 10km non-stop") with an optional target date. Check it off when you hit it, or delete it. Simple and persistent.
+Add goals with a name, optional deadline, category, and priority level. Three goal types are supported:
+
+- **Binary** — a one-off milestone (e.g. "Run 10km non-stop"). Check it off when done.
+- **Measurable** — a numeric target (e.g. "Squat 100kg"). Link it to an exercise and the app auto-fills your current progress from your logs.
+- **Habit** — a weekly frequency target (e.g. "Run 3× per week"). Progress is tracked automatically from logged sessions.
+
+Goals are sorted by urgency — overdue first, then by priority (High / Medium / Low), then by deadline. Each card shows a progress bar, a colour-coded deadline label (green → yellow → orange → red → overdue), and a collapsible notes section for tracking thoughts along the way.
+
+Use the filter tabs at the top to switch between Active, Done, and All views.
 
 ---
 
