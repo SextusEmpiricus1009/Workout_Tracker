@@ -1332,7 +1332,14 @@ function renderToday() {
     const todayTags = todayExLogs.filter(l=>l.name===ex.name).flatMap(l=>l.statusTags||[]);
     const uniqueTodayTags = [...new Set(todayTags)];
     const safeName = ex.name.replace(/'/g,"\\'");
-    const todaySessionIdx = allTodayExLogs.findIndex(l=>l.name===ex.name);
+    // Match this planned slot to its logged entry by occurrence order, not just by name.
+    // Otherwise two same-named exercises in one day (e.g. a warmup + recovery treadmill walk,
+    // or two identical accessory lifts) would both resolve to the same first logged entry —
+    // so logging the second would silently overwrite the first instead of creating a new one.
+    const occurrence = day.exercises.slice(0, i).filter(e2 => e2.name === ex.name).length;
+    const matchingLogIdxs = [];
+    allTodayExLogs.forEach((l, idx) => { if (l.name === ex.name) matchingLogIdxs.push(idx); });
+    const todaySessionIdx = matchingLogIdxs.length > occurrence ? matchingLogIdxs[occurrence] : -1;
     const todayHasLog = todaySessionIdx >= 0;
     const actionBtn = todayHasLog
       ? `<button class="log-btn has-log" onclick="openEditModal('${safeName}',${todaySessionIdx},${selectedDay},'${logDate}')" style="font-size:10px">EDIT</button>`
@@ -1646,32 +1653,35 @@ function openEditModal(name, sessionIdx, dayIdx, dateOverride) {
 function openDetailModal(name, dateStr) {
   const ws = getWorkoutSession(dateStr);
   const allEntries = ws ? (ws.exLogs || []).filter(e => e.name === name) : [];
-  const runEntry = allEntries.find(e => isRunEntry(e));
+  const runEntries = allEntries.filter(e => isRunEntry(e));
   let html = `<div class="modal-title">${escapeHtml(name)}</div>`;
   html += `<div style="font-size:12px;color:var(--muted);margin-bottom:16px">${formatDate(dateStr)}</div>`;
   if (!allEntries.length) {
     html += `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px 0">Not logged yet</div>`;
-  } else if (runEntry) {
-    // Run detail
-    const e = runEntry;
-    const fields = [
-      e.reps       ? ['Distance',  e.reps]                : null,
-      e.pace       ? ['Pace',      e.pace + '/km']        : null,
-      e.runDuration? ['Duration',  e.runDuration + ' min']: null,
-      e.hr         ? ['Avg HR',    e.hr + ' bpm']         : null,
-      e.cadence    ? ['Cadence',   e.cadence + ' spm']    : null,
-      e.rpe        ? ['RPE',       e.rpe]                 : null,
-    ].filter(Boolean);
-    const eff = calcEfficiency(e.pace, e.hr);
-    if (eff) fields.push(['Efficiency', eff.toFixed(2)]);
-    fields.forEach(([label, val]) => {
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${label}</span>
-        <span style="font-size:15px;font-weight:600">${escapeHtml(String(val))}</span>
-      </div>`;
+  } else if (runEntries.length) {
+    // Run detail — one block per logged run entry (e.g. separate warmup + recovery treadmill logs)
+    const multiRun = runEntries.length > 1;
+    runEntries.forEach((e, ri) => {
+      if (multiRun) html += `<div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:${ri>0?'18px':'0'};margin-bottom:4px">Entry ${ri+1}</div>`;
+      const fields = [
+        e.reps       ? ['Distance',  e.reps]                : null,
+        e.pace       ? ['Pace',      e.pace + '/km']        : null,
+        e.runDuration? ['Duration',  e.runDuration + ' min']: null,
+        e.hr         ? ['Avg HR',    e.hr + ' bpm']         : null,
+        e.cadence    ? ['Cadence',   e.cadence + ' spm']    : null,
+        e.rpe        ? ['RPE',       e.rpe]                 : null,
+      ].filter(Boolean);
+      const eff = calcEfficiency(e.pace, e.hr);
+      if (eff) fields.push(['Efficiency', eff.toFixed(2)]);
+      fields.forEach(([label, val]) => {
+        html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">${label}</span>
+          <span style="font-size:15px;font-weight:600">${escapeHtml(String(val))}</span>
+        </div>`;
+      });
+      if (e.notes) html += `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:12px">${escapeHtml(e.notes)}</div>`;
+      if (e.statusTags && e.statusTags.length) html += `<div style="margin-top:10px">${getStatusTagHtml(e.statusTags)}</div>`;
     });
-    if (e.notes) html += `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:12px">${escapeHtml(e.notes)}</div>`;
-    if (e.statusTags && e.statusTags.length) html += `<div style="margin-top:10px">${getStatusTagHtml(e.statusTags)}</div>`;
   } else {
     // Strength detail — one block per set
     const multiSet = allEntries.length > 1;
