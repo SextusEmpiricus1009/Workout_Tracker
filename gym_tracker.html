@@ -17,8 +17,8 @@
     --border: #2a2a2e;
     --accent: #6baaf5;
     --accent2: #9b7ef5;
-    --text: #f0f0f0;
-    --muted: #666;
+    --text: #ffffff;
+    --muted: #ffffff;
     --green: #4ecdc4;
   }
   [data-theme="light"] {
@@ -240,6 +240,7 @@
 
   .exercise-select-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: none; -ms-overflow-style: none; }
   .exercise-select-scroll::-webkit-scrollbar { display: none; }
+  .ex-select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'Barlow', sans-serif; font-size: 14px; padding: 10px 12px; outline: none; margin-bottom: 12px; cursor: pointer; appearance: auto; }
   .ex-pill { flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; color: var(--muted); font-size: 12px; font-weight: 500; padding: 6px 12px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
   .ex-pill.active { background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 700; }
   .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
@@ -2369,7 +2370,7 @@ function renderMuscleGroupChart(filterDates) {
   if (!Object.keys(counts).length) return '';
   const max = Math.max(...Object.values(counts));
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  const MC = { Legs:'#7aaee8', Push:'#e8ff47', Pull:'#c87ac8', 'Push/Pull':'#c87ac8', Core:'#c8a47a', Cardio:'#6ddc9a', Agility:'#ff9f6b', Recovery:'#6dbcdc', Other:'#555' };
+  const MC = { Legs:'#7aaee8', Push:'#e8ff47', Pull:'#c87ac8', 'Push/Pull':'#c87ac8', Core:'#c8a47a', Cardio:'#6ddc9a', Agility:'#ff9f6b', Recovery:'#6dbcdc', Other:'#888' };
   let html = `<div class="section-label">Muscle Group Distribution</div><div class="pr-card" style="padding:10px 14px 6px">`;
   sorted.forEach(([g, c]) => {
     html += `<div class="muscle-bar-row"><div class="muscle-bar-label">${escapeHtml(g)}</div><div class="muscle-bar-track"><div class="muscle-bar-fill" style="width:${(c/max*100).toFixed(0)}%;background:${MC[g]||'var(--accent)'}"></div></div><div class="muscle-bar-count">${c}</div></div>`;
@@ -2401,7 +2402,7 @@ function drawWeeklyRunChart() {
     const y = pad.t + (i / 4) * gH;
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + gW, y); ctx.stroke();
     const v = maxVal * (1 - i / 4);
-    ctx.fillStyle = '#555'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'right';
     if (v >= 0.05) ctx.fillText(v.toFixed(1), pad.l - 3, y + 4);
   }
   weeks.forEach((w, i) => {
@@ -2417,7 +2418,7 @@ function drawWeeklyRunChart() {
     ctx.fillStyle = '#6ddc9a'; ctx.font = '8px Barlow,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(w.dist + 'k', x + bW / 2, Math.max(y - 2, pad.t + 8));
   });
-  ctx.fillStyle = '#555'; ctx.font = '8px Barlow,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff'; ctx.font = '8px Barlow,sans-serif'; ctx.textAlign = 'center';
   weeks.forEach((w, i) => { if (i % 3 === 0 || i === weeks.length - 1) ctx.fillText(w.label, pad.l + i * barW + barW / 2, H - 4); });
 }
 
@@ -2622,7 +2623,7 @@ function drawPaceHRChart(runs) {
   paces.forEach((p,i) => { ctx.fillStyle='#6dbcdc'; ctx.beginPath(); ctx.arc(xS(i),yPace(p),3,0,Math.PI*2); ctx.fill(); });
   hrs.forEach(  (h,i) => { ctx.fillStyle='#e05f5f'; ctx.beginPath(); ctx.arc(xS(i),yHR(h),  3,0,Math.PI*2); ctx.fill(); });
   // X labels
-  ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='#ffffff'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
   const step = Math.max(1, Math.floor(runs.length/5));
   runs.forEach((r,i) => {
     if (i%step===0 || i===runs.length-1) {
@@ -2652,7 +2653,7 @@ function drawEfficiencyChart(runs) {
   for (let i=0; i<=4; i++) {
     const y = pad.t+(i/4)*gH;
     ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+gW,y); ctx.stroke();
-    ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillStyle='#ffffff'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='right';
     ctx.fillText((max-(i/4)*(max-min)).toFixed(2), pad.l-4, y+4);
   }
   // Fill
@@ -2671,7 +2672,7 @@ function drawEfficiencyChart(runs) {
   ctx.fillStyle='#6dbcdc';
   dataPoints.forEach((p,i) => { ctx.beginPath(); ctx.arc(xS(i),yS(p.val),3,0,Math.PI*2); ctx.fill(); });
   // X labels
-  ctx.fillStyle='#555'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='#ffffff'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
   const step = Math.max(1,Math.floor(dataPoints.length/5));
   dataPoints.forEach((p,i) => {
     if (i%step===0 || i===dataPoints.length-1) {
@@ -2741,11 +2742,11 @@ function renderProgress() {
     const exLogs = logs[name] || [];
     const prs = getPRs();
     html += `<div class="section-label" style="margin-top:24px">Exercise Progress</div>`;
-    html += `<div class="exercise-select-scroll">`;
+    html += `<select class="ex-select" onchange="selectProgressEx(this.selectedIndex)">`;
     exNames.forEach((n, i) => {
-      html += `<button class="ex-pill ${i === progressExIdx ? 'active' : ''}" onclick="selectProgressEx(${i})">${escapeHtml(n)}</button>`;
+      html += `<option value="${i}" ${i === progressExIdx ? 'selected' : ''}>${escapeHtml(n)}</option>`;
     });
-    html += `</div>`;
+    html += `</select>`;
     html += `<div class="chart-toggle">
       <button class="chart-toggle-btn ${progressChartMode==='weight'?'active':''}" data-mode="weight" onclick="selectProgressChartMode('weight')">Weight</button>
       <button class="chart-toggle-btn ${progressChartMode==='e1rm'?'active':''}" data-mode="e1rm" onclick="selectProgressChartMode('e1rm')">Est. 1RM</button>
@@ -2811,7 +2812,7 @@ function drawChartWithMode(name, exLogs, mode) {
   const W = canvas.parentElement.offsetWidth, H = 140;
   ctx.clearRect(0, 0, W, H);
   if (!dataPoints || dataPoints.length < 2) {
-    ctx.fillStyle = '#444'; ctx.font = '12px Barlow,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff'; ctx.font = '12px Barlow,sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('Log at least 2 sessions to see trend', W/2, H/2);
     return;
   }
@@ -2824,19 +2825,19 @@ function drawChartWithMode(name, exLogs, mode) {
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + (i/4)*gH;
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+gW, y); ctx.stroke();
-    ctx.fillStyle = '#555'; ctx.font = '10px Barlow,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff'; ctx.font = '10px Barlow,sans-serif'; ctx.textAlign = 'right';
     ctx.fillText((max-(i/4)*(max-min)).toFixed(1), pad.l-4, y+4);
   }
   ctx.beginPath(); ctx.moveTo(xS(0), yS(dataPoints[0].val));
   dataPoints.forEach((p, i) => { if (i > 0) ctx.lineTo(xS(i), yS(p.val)); });
   ctx.lineTo(xS(dataPoints.length-1), pad.t+gH); ctx.lineTo(xS(0), pad.t+gH); ctx.closePath();
   const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+gH);
-  grad.addColorStop(0, 'rgba(232,255,71,0.18)'); grad.addColorStop(1, 'rgba(232,255,71,0.01)');
+  grad.addColorStop(0, 'rgba(107,170,245,0.18)'); grad.addColorStop(1, 'rgba(107,170,245,0.01)');
   ctx.fillStyle = grad; ctx.fill();
-  ctx.beginPath(); ctx.strokeStyle = '#e8ff47'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.strokeStyle = '#6baaf5'; ctx.lineWidth = 2;
   dataPoints.forEach((p, i) => { i===0 ? ctx.moveTo(xS(i),yS(p.val)) : ctx.lineTo(xS(i),yS(p.val)); }); ctx.stroke();
-  dataPoints.forEach((p, i) => { ctx.beginPath(); ctx.arc(xS(i), yS(p.val), 4, 0, Math.PI*2); ctx.fillStyle = '#e8ff47'; ctx.fill(); });
-  ctx.fillStyle = '#555'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
+  dataPoints.forEach((p, i) => { ctx.beginPath(); ctx.arc(xS(i), yS(p.val), 4, 0, Math.PI*2); ctx.fillStyle = '#6baaf5'; ctx.fill(); });
+  ctx.fillStyle = '#ffffff'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
   dataPoints.forEach((p, i) => { if (i===0||i===dataPoints.length-1||dataPoints.length<=5) ctx.fillText(p.date.slice(5), xS(i), H-6); });
 }
 
